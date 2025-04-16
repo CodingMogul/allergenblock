@@ -11,7 +11,7 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
 
 // Initialize Gemini AI model
 if(!process.env.GEMINI_API_KEY){
-    throw new Error("GEMINI_API_KEY not found in environment variables")
+    throw new Error("GEMINI_API_KEY not found in environment variables")
 }
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({model:"gemini-1.5-flash"});
@@ -33,54 +33,54 @@ const model = genAI.getGenerativeModel({model:"gemini-1.5-flash"});
  * Example request: /api/maps?restaurantName=Pizza%20Palace&lat=37.7749&lng=-122.4194
  * Example response:
  * {
- *   restaurantName: "Pizza Palace",
- *   location: { lat: 37.7749, lng: -122.4194 },
- *   menuItems: [
- *     { name: "Margherita Pizza", allergens: ["dairy", "gluten"] }
- *   ]
+ *   restaurantName: "Pizza Palace",
+ *   location: { lat: 37.7749, lng: -122.4194 },
+ *   menuItems: [
+ *     { name: "Margherita Pizza", allergens: ["dairy", "gluten"] }
+ *   ]
  * }
  */
 export async function GET(req: NextRequest) {
-  try {
-    // Get query parameters
-    const searchParams = req.nextUrl.searchParams;
-    const restaurantName = searchParams.get('restaurantName');
-    const lat = searchParams.get('lat');
-    const lng = searchParams.get('lng');
+  try {
+    // Get query parameters
+    const searchParams = req.nextUrl.searchParams;
+    const restaurantName = searchParams.get('restaurantName');
+    const lat = searchParams.get('lat');
+    const lng = searchParams.get('lng');
 
-    // Validate required parameters
-    if (!restaurantName || !lat || !lng) {
-      return NextResponse.json(
-        { error: 'Restaurant name, latitude, and longitude are required' },
-        { status: 400 }
-      );
-    }
+    // Validate required parameters
+    if (!restaurantName || !lat || !lng) {
+      return NextResponse.json(
+        { error: 'Restaurant name, latitude, and longitude are required' },
+        { status: 400 }
+      );
+    }
 
-    // Get menu context using the service function
-    const menuContext = await getMenuContext(
-      restaurantName,
-      { lat: parseFloat(lat), lng: parseFloat(lng) }
-    );
+    // Get menu context using the service function
+    const menuContext = await getMenuContext(
+      restaurantName,
+      { lat: parseFloat(lat), lng: parseFloat(lng) }
+    );
 
-    if (!menuContext) {
-      return NextResponse.json(
-        { error: 'Menu not found for this restaurant and location' },
-        { status: 404 }
-      );
-    }
+    if (!menuContext) {
+      return NextResponse.json(
+        { error: 'Menu not found for this restaurant and location' },
+        { status: 404 }
+      );
+    }
 
-    // Return the menu data with explicit apimatch field
-    return NextResponse.json({
-      ...menuContext,
-      apimatch: menuContext.apimatch || 'none'
-    });
-  } catch (error) {
-    console.error('Error fetching menu:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
+    // Return the menu data with explicit apimatch field
+    return NextResponse.json({
+      ...menuContext,
+      apimatch: menuContext.apimatch || 'none'
+    });
+  } catch (error) {
+    console.error('Error fetching menu:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
 }
 
 /**
@@ -90,39 +90,39 @@ export async function GET(req: NextRequest) {
  * @returns {Promise<NextResponse>} JSON response containing nearby restaurants with menu data
  */
 export async function POST(request: Request) {
-  try {
-    const { imageData, restaurantName, location } = await request.json();
+  try {
+    const { imageData, restaurantName, location } = await request.json();
 
-    // Process the image to extract menu data
-    const cameraData = await processCameraImage(imageData);
-    
-    // Store the restaurant and menu data
-    const success = await storeRestaurantWithMenu({
-      restaurantName,
-      location,
-      menuItems: cameraData.menuItems,
-      source: 'camera'
-    });
+    // Process the image to extract menu data
+    const cameraData = await processCameraImage(imageData);
+    
+    // Store the restaurant and menu data
+    const success = await storeRestaurantWithMenu({
+      restaurantName,
+      location,
+      menuItems: cameraData.menuItems,
+      source: 'camera'
+    });
 
-    if (!success) {
-      return NextResponse.json({ error: "Failed to store restaurant data" }, { status: 500 });
-    }
+    if (!success) {
+      return NextResponse.json({ error: "Failed to store restaurant data" }, { status: 500 });
+    }
 
-    // Get the stored menu context
-    const menuContext = await getMenuContext(restaurantName, location);
-    
-    if (!menuContext) {
-      return NextResponse.json({ error: "Failed to retrieve menu context" }, { status: 500 });
-    }
+    // Get the stored menu context
+    const menuContext = await getMenuContext(restaurantName, location);
+    
+    if (!menuContext) {
+      return NextResponse.json({ error: "Failed to retrieve menu context" }, { status: 500 });
+    }
 
-    // Find the best matching menu
-    const bestMatch = findBestMatchingMenu(cameraData.menuItems, menuContext.menuItems);
+    // Find the best matching menu
+    const bestMatch = findBestMatchingMenu(cameraData.menuItems, menuContext.menuItems);
 
-    return NextResponse.json({ success: true, bestMatch });
-  } catch (error) {
-    console.error("Error processing camera image:", error);
-    return NextResponse.json({ error: "Failed to process image" }, { status: 500 });
-  }
+    return NextResponse.json({ success: true, bestMatch });
+  } catch (error) {
+    console.error("Error processing camera image:", error);
+    return NextResponse.json({ error: "Failed to process image" }, { status: 500 });
+  }
 }
 
 /**
@@ -133,44 +133,44 @@ export async function POST(request: Request) {
  * @returns {Promise<NextResponse>} JSON response containing processed menu data
  */
 export async function POST_ALLERGEN(request: Request) {
-  try {
-    const { image, restaurantName, latitude, longitude, source } = await request.json();
+  try {
+    const { image, restaurantName, latitude, longitude, source } = await request.json();
 
-    if (!image || !restaurantName || latitude == undefined || longitude == undefined || !source) {
-      return NextResponse.json(
-        { error: "Missing required fields (image, restaurantName, latitude, longitude, source)" },
-        { status: 400 }
-      );
-    }
+    if (!image || !restaurantName || latitude == undefined || longitude == undefined || !source) {
+      return NextResponse.json(
+        { error: "Missing required fields (image, restaurantName, latitude, longitude, source)" },
+        { status: 400 }
+      );
+    }
 
-    // Extract base64 data from image
-    const base64Image = image.includes(',') ? image.split(',')[1] : image;
-    
-    // Process image with Gemini AI
-    const menuItems = await processImageWithGemini(base64Image);
+    // Extract base64 data from image
+    const base64Image = image.includes(',') ? image.split(',')[1] : image;
+    
+    // Process image with Gemini AI
+    const menuItems = await processImageWithGemini(base64Image);
 
-    // Create menu data object
-    const menuData = {
-      success: true,
-      message: 'Menu captured successfully',
-      restaurantName: restaurantName,
-      location: { lat: latitude, lng: longitude },
-      menuItems: menuItems,
-      source: source
-    };
+    // Create menu data object
+    const menuData = {
+      success: true,
+      message: 'Menu captured successfully',
+      restaurantName: restaurantName,
+      location: { lat: latitude, lng: longitude },
+      menuItems: menuItems,
+      source: source
+    };
 
-    // Store restaurant data
-    const stored = await storeRestaurantWithMenu(menuData);
+    // Store restaurant data
+    const stored = await storeRestaurantWithMenu(menuData);
 
-    return NextResponse.json({
-      ...menuData,
-      stored: stored
-    });
-  } catch (error) {
-    console.log("[POST/allergen] Request failed", error);
-    return NextResponse.json(
-      { message: "error" },
-      { status: 500 }
-    );
-  }
+    return NextResponse.json({
+      ...menuData,
+      stored: stored
+    });
+  } catch (error) {
+    console.log("[POST/allergen] Request failed", error);
+    return NextResponse.json(
+      { message: "error" },
+      { status: 500 }
+    );
+  }
 }
