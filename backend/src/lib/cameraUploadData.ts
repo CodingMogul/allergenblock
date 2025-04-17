@@ -155,7 +155,7 @@ export async function processImageWithGemini(base64Image: string) {
       // and less creative, as this is a factual task
       generationConfig: {
         temperature: 0,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 4096,
       }
     });
 
