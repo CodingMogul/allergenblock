@@ -11,6 +11,7 @@ import {
 import {
   TapGestureHandler,
   GestureHandlerRootView,
+  TapGestureHandlerGestureEvent,
 } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -80,7 +81,7 @@ export default function MenuScreen() {
       isFlipped.value = !isFlipped.value;
     };
 
-    const tapGesture = useAnimatedGestureHandler({
+    const tapGesture = useAnimatedGestureHandler<TapGestureHandlerGestureEvent>({
       onActive: () => {
         runOnJS(handleFlip)();
       },
