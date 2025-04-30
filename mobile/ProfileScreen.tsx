@@ -1,13 +1,65 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from './types/navigation';
+
+type UserProfile = {
+  firstName: string;
+  lastName: string;
+  allergens: string[];
+};
 
 export default function ProfileScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      const profileData = await AsyncStorage.getItem('userProfile');
+      if (profileData) {
+        setProfile(JSON.parse(profileData));
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const handleEditProfile = () => {
+    navigation.navigate('ProfileSetup');
+  };
+
+  if (!profile) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Profile</Text>
-      <View style={styles.content}>
-        <Text>Your allergen profile and settings will go here</Text>
+      <View style={styles.profileInfo}>
+        <Text style={styles.name}>{profile.firstName} {profile.lastName}</Text>
+        <Text style={styles.sectionTitle}>Your Allergens:</Text>
+        <View style={styles.allergenList}>
+          {profile.allergens.map((allergen) => (
+            <Text key={allergen} style={styles.allergenItem}>• {allergen}</Text>
+          ))}
+        </View>
       </View>
+
+      <TouchableOpacity 
+        style={styles.editButton}
+        onPress={handleEditProfile}
+      >
+        <Text style={styles.editButtonText}>Edit Profile →</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -16,15 +68,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    paddingTop: 20,
-  },
-  header: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  content: {
     padding: 20,
   },
-}); 
+  profileInfo: {
+    marginBottom: 32,
+  },
+  name: {
+    fontSize: 32,
+    fontFamily: 'Inter-Bold',
+    color: '#222',
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
+    color: '#666',
+    marginBottom: 16,
+  },
+  allergenList: {
+    paddingLeft: 8,
+  },
+  allergenItem: {
+    fontSize: 18,
+    fontFamily: 'Inter',
+    color: '#222',
+    marginBottom: 8,
+  },
+  editButton: {
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: '#000',
+    fontSize: 20,
+    fontFamily: 'Inter-Bold',
+  },
+});

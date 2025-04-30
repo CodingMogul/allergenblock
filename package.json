@@ -9,6 +9,7 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.2",
     "@react-navigation/stack": "^7.2.10",
     "mongodb": "^6.16.0"
   }
