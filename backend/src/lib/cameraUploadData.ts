@@ -132,6 +132,9 @@ export async function processImageWithGemini(base64Image: string) {
                   ]
 
                   Rules:
+                  - Only output allergens as one of these exact strings: dairy, eggs, fish, shellfish, treenuts, peanuts, gluten, soy, sesame. Do not output any other allergen names.
+                  - For example, if an item contains milk or cheese, output 'dairy'.
+                  - If an item contains wheat, output 'gluten'.
                   - If ingredients are visible, extract allergens from them and assign a high certainty
                   - If ingredients are not visible, use YOUR food knowledge of fast food items (like those from Burger King, McDonald's, Chick-fil-A) to infer allergens and assign a moderate certainty. Assign high certainty if very sure it includes those allergens.
                   - If you are unsure, assign a lower certainty
@@ -139,7 +142,7 @@ export async function processImageWithGemini(base64Image: string) {
                   - If you still can't infer allergens, return an empty array []
                   - Accuracy is critical for allergic individuals. Be as precise as possible.
                   - If there are any typos of general food items from the common restaurants then you can use your general knowledge to correct it (e.g. use "Hamburger" for Burger King if there's a processing error of "Hashburger" or "Hanburger")
-                  - If a menu item is under a category like “Pizza”, “Burgers”, “Combos”, or “Country Dinners”, assume it inherits base ingredients typical of that category unless stated otherwise. For example, if a dish is under “BBQ” and contains pulled pork or ribs, assume BBQ sauce is used and may contain gluten.
+                  - If a menu item is under a category like "Pizza", "Burgers", "Combos", or "Country Dinners", assume it inherits base ingredients typical of that category unless stated otherwise. For example, if a dish is under "BBQ" and contains pulled pork or ribs, assume BBQ sauce is used and may contain gluten.
                   - Do not treat menu items as standalone unless they appear outside a category.
                   - No markdown, no extra text — just raw JSON`,
           },

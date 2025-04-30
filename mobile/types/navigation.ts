@@ -5,6 +5,7 @@ export type RootStackParamList = {
   Menu: { restaurantId: string; restaurantName: string };
   Profile: undefined;
   InstructionPage: undefined;
-  ProfileSetup: undefined;
+  ProfileSetup: { canGoBack?: boolean } | undefined;
   Welcome: undefined;
+  Camera: undefined;
 }; 

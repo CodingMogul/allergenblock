@@ -25,14 +25,14 @@ export async function getMenuContext(
   
   // If restaurantId is provided, try to find the restaurant directly by ID
   if (restaurantId) {
-    const restaurant = await db.collection("restaurants").findOne({
+    const restaurant = await db.db.collection("restaurants").findOne({
       _id: new ObjectId(restaurantId)
     });
     if (restaurant) return restaurant;
   }
   
   // First try exact match
-  const exactMatch = await db.collection("restaurants").findOne({
+  const exactMatch = await db.db.collection("restaurants").findOne({
     restaurantName,
     location: {
       $near: {
@@ -45,7 +45,7 @@ export async function getMenuContext(
   if (exactMatch) return exactMatch;
 
   // If no exact match, try similar names within distance
-  const allRestaurants = await db.collection("restaurants").find({}).toArray();
+  const allRestaurants = await db.db.collection("restaurants").find({}).toArray();
   
   return allRestaurants.find(restaurant => {
     const nameSimilarity = calculateStringSimilarity(restaurant.restaurantName, restaurantName);
@@ -71,7 +71,7 @@ export async function storeRestaurantWithMenu(
     const googleMatch = await checkGoogleMapsRestaurant(menuData.restaurantName, menuData.location);
     
     // Find restaurants with similar names
-    const existingRestaurants = await db.collection("restaurants").find({}).toArray();
+    const existingRestaurants = await db.db.collection("restaurants").find({}).toArray();
     
     // Check for similar restaurants within distance threshold
     const similarRestaurant = existingRestaurants.find(restaurant => {
@@ -104,16 +104,17 @@ export async function storeRestaurantWithMenu(
     if (similarRestaurant) {
       // Update existing restaurant with new menu data
       console.log('Similar restaurant found, updating menu data:', menuData.restaurantName);
-      await db.collection("restaurants").updateOne(
+      await db.db.collection("restaurants").updateOne(
         { _id: similarRestaurant._id },
         { $set: restaurantData }
       );
     } else {
       // Create new restaurant document with menu data
       console.log('Creating new restaurant document:', menuData.restaurantName);
-      await db.collection("restaurants").insertOne({
+      await db.db.collection("restaurants").insertOne({
         ...restaurantData,
-        createdAt: new Date()
+        createdAt: new Date(),
+        hidden: false
       });
     }
     
@@ -137,7 +138,7 @@ export async function getRestaurantInfo(
 ) {
   try {
     const db = await connectToDatabase();
-    return db.collection("restaurants").findOne({
+    return db.db.collection("restaurants").findOne({
       restaurantName,
       location: {
         $near: {

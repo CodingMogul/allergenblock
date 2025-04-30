@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -9,31 +9,51 @@ import {
   ActivityIndicator,
   Alert
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types/navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Feather } from '@expo/vector-icons';
 
 const ALLERGENS = [
-  { id: 'milk', name: 'Dairy', emoji: '🥛' },
+  { id: 'dairy', name: 'Dairy', emoji: '🥛' },
   { id: 'eggs', name: 'Eggs', emoji: '🥚' },
   { id: 'fish', name: 'Fish', emoji: '🐟' },
   { id: 'shellfish', name: 'Shellfish', emoji: '🦐' },
   { id: 'treenuts', name: 'Tree Nuts', emoji: '🥜' },
   { id: 'peanuts', name: 'Peanuts', emoji: '🥜' },
-  { id: 'wheat', name: 'Wheat', emoji: '🌾' },
+  { id: 'gluten', name: 'Gluten', emoji: '🍞' },
   { id: 'soy', name: 'Soy', emoji: '🫘' },
   { id: 'sesame', name: 'Sesame', emoji: '✨' },
 ];
 
 export default function ProfileSetup() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'ProfileSetup'>>();
+  const canGoBack = route.params?.canGoBack;
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [selectedAllergens, setSelectedAllergens] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [firstNameError, setFirstNameError] = useState('');
   const [lastNameError, setLastNameError] = useState('');
+  const [showSaved, setShowSaved] = useState(false);
+
+  // Load profile data when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      const loadProfile = async () => {
+        const profile = await AsyncStorage.getItem('userProfile');
+        if (profile) {
+          const { firstName, lastName, allergens } = JSON.parse(profile);
+          setFirstName(firstName || '');
+          setLastName(lastName || '');
+          setSelectedAllergens(allergens || []);
+        }
+      };
+      loadProfile();
+    }, [])
+  );
 
   const toggleAllergen = (allergenId: string) => {
     setSelectedAllergens(current => 
@@ -90,9 +110,13 @@ export default function ProfileSetup() {
         lastName: lastName.trim(),
         allergens: selectedAllergens
       };
-
       await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
-      navigation.navigate('Welcome');
+      if (canGoBack) {
+        setShowSaved(true);
+        setTimeout(() => setShowSaved(false), 3000);
+      } else {
+        navigation.navigate('Welcome');
+      }
     } catch (error) {
       Alert.alert(
         'Error',
@@ -111,65 +135,81 @@ export default function ProfileSetup() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Profile Setup</Text>
-      <Text style={styles.subtitle}>Let's set up your allergy profile!</Text>
-      
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={[styles.input, firstNameError ? styles.inputError : null]}
-          placeholder="First Name"
-          value={firstName}
-          onChangeText={(text) => {
-            setFirstName(text);
-            setFirstNameError('');
-          }}
-          placeholderTextColor="#666"
-        />
-        {firstNameError ? <Text style={styles.errorText}>{firstNameError}</Text> : null}
+    <View style={{ flex: 1 }}>
+      {canGoBack && (
+        <TouchableOpacity
+          style={styles.homeButton}
+          onPress={() => navigation.replace('Home')}
+          accessibilityLabel="Go to Home"
+        >
+          <Feather name="home" size={28} color="#222" />
+        </TouchableOpacity>
+      )}
+      <ScrollView style={styles.container}>
+        <Text style={styles.title}>Profile Setup</Text>
+        <Text style={styles.subtitle}>Let's set up your allergy profile!</Text>
         
-        <TextInput
-          style={[styles.input, lastNameError ? styles.inputError : null]}
-          placeholder="Last Name"
-          value={lastName}
-          onChangeText={(text) => {
-            setLastName(text);
-            setLastNameError('');
-          }}
-          placeholderTextColor="#666"
-        />
-        {lastNameError ? <Text style={styles.errorText}>{lastNameError}</Text> : null}
-      </View>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.input, firstNameError ? styles.inputError : null]}
+            placeholder="First Name"
+            value={firstName}
+            onChangeText={(text) => {
+              setFirstName(text);
+              setFirstNameError('');
+            }}
+            placeholderTextColor="#666"
+          />
+          {firstNameError ? <Text style={styles.errorText}>{firstNameError}</Text> : null}
+          
+          <TextInput
+            style={[styles.input, lastNameError ? styles.inputError : null]}
+            placeholder="Last Name"
+            value={lastName}
+            onChangeText={(text) => {
+              setLastName(text);
+              setLastNameError('');
+            }}
+            placeholderTextColor="#666"
+          />
+          {lastNameError ? <Text style={styles.errorText}>{lastNameError}</Text> : null}
+        </View>
 
-      <Text style={styles.sectionTitle}>Select Your Allergens</Text>
-      <View style={styles.allergenGrid}>
-        {ALLERGENS.map((allergen) => (
-          <TouchableOpacity
-            key={allergen.id}
-            style={[
-              styles.allergenButton,
-              selectedAllergens.includes(allergen.id) && styles.allergenButtonSelected
-            ]}
-            onPress={() => toggleAllergen(allergen.id)}
-          >
-            <Text style={styles.allergenEmoji}>{allergen.emoji}</Text>
-            <Text style={styles.allergenText}>{allergen.name}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <Text style={styles.sectionTitle}>Select Your Allergens</Text>
+        <View style={styles.allergenGrid}>
+          {ALLERGENS.map((allergen) => (
+            <TouchableOpacity
+              key={allergen.id}
+              style={[
+                styles.allergenButton,
+                selectedAllergens.includes(allergen.id) && styles.allergenButtonSelected
+              ]}
+              onPress={() => toggleAllergen(allergen.id)}
+            >
+              <Text style={styles.allergenEmoji}>{allergen.emoji}</Text>
+              <Text style={styles.allergenText}>{allergen.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
-      <TouchableOpacity 
-        style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
-        onPress={handleSave}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <ActivityIndicator color="#000" />
-        ) : (
-          <Text style={styles.saveButtonText}>Save Profile →</Text>
+        <TouchableOpacity 
+          style={[styles.saveButton, isLoading && styles.saveButtonDisabled]}
+          onPress={handleSave}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#000" />
+          ) : (
+            <Text style={styles.saveButtonText}>Save Profile</Text>
+          )}
+        </TouchableOpacity>
+        {showSaved && (
+          <Text style={{ color: 'green', textAlign: 'center', marginBottom: 16, fontSize: 16, fontWeight: 'bold' }}>
+            Saved!
+          </Text>
         )}
-      </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -178,12 +218,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     padding: 20,
+    paddingTop: 100,
   },
   title: {
     fontSize: 32,
     fontFamily: 'Inter-Bold',
     color: '#DA291C',
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 18,
@@ -191,6 +233,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: '#666',
     marginBottom: 32,
+    textAlign: 'center',
   },
   inputContainer: {
     marginBottom: 32,
@@ -225,7 +268,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    marginBottom: 12,
   },
   allergenButton: {
     width: '30%',
@@ -258,7 +301,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 8,
   },
   saveButtonDisabled: {
     opacity: 0.5,
@@ -267,5 +310,16 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 20,
     fontFamily: 'Inter-Bold',
+  },
+  homeButton: {
+    position: 'absolute',
+    top: 70,
+    left: 20,
+    zIndex: 20,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
   },
 }); 

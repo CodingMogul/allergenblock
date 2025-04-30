@@ -11,6 +11,7 @@ import AllergenScreen from './AllergenScreen';
 import InstructionPage from './InstructionPage';
 import ProfileSetup from './ProfileSetup';
 import WelcomeScreen from './WelcomeScreen';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
@@ -28,22 +29,26 @@ export default function App() {
         <Stack.Screen
           name="Allergen"
           component={AllergenScreen}
-          options={{ title: 'Allergen' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Home"
           component={HomeScreen}
-          options={{ title: 'Restaurants' }}
+          options={{
+            headerShown: false,
+            headerBackVisible: false,
+            gestureEnabled: false,
+          }}
         />
         <Stack.Screen
           name="Menu"
           component={MenuScreen}
-          options={{ title: 'Menu' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Profile"
           component={ProfileScreen}
-          options={{ title: 'Your Profile' }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen 
           name="InstructionPage"
@@ -56,17 +61,11 @@ export default function App() {
         <Stack.Screen 
           name="ProfileSetup"
           component={ProfileSetup}
-          options={{
-            title: 'Profile Setup',
-            headerStyle: {
-              backgroundColor: '#fff',
-            },
-            headerTintColor: '#000',
-            headerTitleStyle: {
-              fontFamily: 'Inter-Medium',
-            },
-            gestureEnabled: false,
-          }}
+          options={({ route }) => ({
+            headerShown: false,
+            gestureEnabled: !!route.params?.canGoBack,
+            headerBackVisible: !!route.params?.canGoBack,
+          })}
         />
         <Stack.Screen 
           name="Welcome"
