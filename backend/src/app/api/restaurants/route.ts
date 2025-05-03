@@ -7,14 +7,18 @@ export async function GET() {
     const { db } = await connectToDatabase();
     const restaurants = await db.collection('restaurants')
       .find({})
-      .project({ _id: 1, restaurantName: 1, location: 1 })
+      .project({ _id: 1, restaurantName: 1, location: 1, hidden: 1, apimatch: 1, brandLogo: 1, googlePlace: 1 })
       .toArray();
 
     const formattedRestaurants = restaurants.map(restaurant => ({
       id: restaurant._id.toString(),
       name: restaurant.restaurantName,
+      displayName: restaurant.googlePlace?.name || restaurant.restaurantName,
       latitude: restaurant.location?.coordinates?.[1],
       longitude: restaurant.location?.coordinates?.[0],
+      hidden: restaurant.hidden || false,
+      apimatch: restaurant.apimatch || 'none',
+      brandLogo: restaurant.brandLogo ?? null,
     }));
 
     return NextResponse.json(formattedRestaurants);

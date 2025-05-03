@@ -1,2 +1,2 @@
 // ✅ config.ts (use your local IP address)
-export const BASE_URL = 'http://192.168.2.187:3000';
+export const BASE_URL = 'http://172.20.98.40:3000';

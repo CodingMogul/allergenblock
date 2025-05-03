@@ -8,6 +8,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Modal,
+  Image,
 } from 'react-native';
 import {
   TapGestureHandler,
@@ -60,7 +61,14 @@ export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
   const { restaurant } = route.params as {
-    restaurant: { id: string; name: string };
+    restaurant: {
+      id: string;
+      name: string;
+      apimatch?: string;
+      brandLogo?: string;
+      googlePlace?: { name?: string };
+      displayName?: string;
+    };
   };
 
   const [menu, setMenu] = useState<MenuItem[]>([]);
@@ -269,7 +277,20 @@ export default function MenuScreen() {
         </View>
       </Modal>
 
-      <Text style={styles.header}>{restaurant.name} Menu</Text>
+      <View style={{ alignItems: 'center', marginBottom: 8 }}>
+        {restaurant.apimatch === 'google' && restaurant.brandLogo && (
+          <Image source={{ uri: restaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
+        )}
+        <Text style={styles.header}>
+          {
+            restaurant.apimatch === 'google' && restaurant.googlePlace && restaurant.googlePlace.name
+              ? `${restaurant.googlePlace.name} Menu`
+              : restaurant.displayName
+                ? `${restaurant.displayName} Menu`
+                : `${restaurant.name} Menu`
+          }
+        </Text>
+      </View>
 
       {loading ? (
         <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />

@@ -1,5 +1,5 @@
 // ✅ HomeScreen.tsx
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
   Alert,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BASE_URL } from './config';
 import {
@@ -25,23 +25,28 @@ import {
   State as GestureState,
 } from 'react-native-gesture-handler';
 import * as ImagePicker from 'expo-image-picker';
-import { MaterialIcons, Feather } from '@expo/vector-icons';
+import { MaterialIcons, Feather, FontAwesome5 } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
+import { Animated, Easing } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 interface Restaurant {
   id: string;
   name: string;
+  displayName?: string;
   latitude?: number;
   longitude?: number;
+  brandLogo?: string;
 }
 
-type RestaurantWithDistance = Restaurant & { distance?: number };
+type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
 
 type RootStackParamList = {
   Home: undefined;
-  Menu: { restaurant: { id: string; name: string } };
+  Menu: { restaurant: { id: string; name: string; apimatch?: string; brandLogo?: string } };
   Camera: undefined;
   ProfileSetup: { canGoBack?: boolean };
 };
@@ -73,8 +78,44 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   return R * c;
 }
 
+// Helper to compute distance between two lat/lng points in meters
+function getDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (x: number) => x * Math.PI / 180;
+  const R = 6371000; // meters
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// Update getGoogleMatchedName to return both name and location if matched
+async function getGoogleMatchedNameAndLocation(inputName: string, location: { lat: number; lng: number }) {
+  try {
+    const params = new URLSearchParams({
+      restaurantName: inputName,
+      lat: String(location.lat),
+      lng: String(location.lng),
+    });
+    const res = await fetch(`${BASE_URL}/api/maps?${params.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.apimatch === 'google' && data.googlePlace && data.googlePlace.name && data.googlePlace.location) {
+        return {
+          name: data.googlePlace.name,
+          location: data.googlePlace.location,
+        };
+      }
+    }
+  } catch {}
+  return { name: inputName, location };
+}
+
 const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState('');
@@ -90,6 +131,25 @@ const HomeScreen = () => {
   const [restaurantToDelete, setRestaurantToDelete] = useState<Restaurant | null>(null);
   const [userFirstName, setUserFirstName] = useState('');
   const [userLastInitial, setUserLastInitial] = useState('');
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
+  const [newlyAddedRestaurantId, setNewlyAddedRestaurantId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [googleMatchedName, setGoogleMatchedName] = useState<string | null>(null);
+  const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
+  const [showNoMenuModal, setShowNoMenuModal] = useState(false);
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const [cardAnim] = React.useState(new Animated.Value(0));
+  const noMenuFadeAnim = React.useRef(new Animated.Value(1)).current;
+  const magnifierFadeAnim = React.useRef(new Animated.Value(1)).current;
+  const cautionFadeAnim = React.useRef(new Animated.Value(0)).current;
+  // Success overlay animation values
+  const successMagnifierFadeAnim = React.useRef(new Animated.Value(1)).current;
+  const successCheckFadeAnim = React.useRef(new Animated.Value(0)).current;
+  const [showHomeFadeIn, setShowHomeFadeIn] = useState(false);
+  const homeFadeAnim = useRef(new Animated.Value(0)).current;
+  const [successOverlayAnim] = useState(new Animated.Value(1));
+
+  const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
   // Fetch restaurants function (moved outside useEffect for reuse)
   const fetchRestaurants = async () => {
@@ -103,6 +163,12 @@ const HomeScreen = () => {
         const data = JSON.parse(text);
         setRestaurants(data);
         console.log('Fetched restaurants:', data);
+        data.forEach((r: any) => {
+          console.log(
+            `[Restaurant] id: ${r.id}, name: "${r.name}", displayName: "${r.displayName}", apimatch: "${r.apimatch}"`
+          );
+        });
+        return data;
       } catch (parseError) {
         console.error("JSON Parse error:", text.substring(0, 100));
         throw parseError;
@@ -110,6 +176,7 @@ const HomeScreen = () => {
     } catch (error) {
       console.error("Error loading restaurants:", error);
       setRestaurants([]);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -133,18 +200,45 @@ const HomeScreen = () => {
     loadUserName();
   }, []);
 
-  const handlePress = (restaurant: Restaurant) => {
+  const handlePress = (restaurant: RestaurantWithDistance & { apimatch?: string; brandLogo?: string }) => {
     navigation.navigate('Menu', {
-      restaurant: { id: restaurant.id, name: restaurant.name },
+      restaurant: {
+        id: restaurant.id,
+        name: restaurant.name,
+        apimatch: (restaurant as any).apimatch,
+        brandLogo: (restaurant as any).brandLogo,
+      },
     });
   };
 
-  // Filter out hidden restaurants
-  const visibleRestaurants = restaurants.filter(r => !(r as any).hidden);
-
+  // Filter out hidden restaurants, but allow the best matching hidden restaurant to appear at the top if searching
   const filteredRestaurants: RestaurantWithDistance[] = useMemo(() => {
-    let list: RestaurantWithDistance[] = visibleRestaurants;
-    if (locationFilter) {
+    let list: RestaurantWithDistance[] = restaurants.filter(r => !(r as any).hidden);
+    let bestHiddenMatch: RestaurantWithDistance | null = null;
+    if (searchText.trim()) {
+      // Find the best matching hidden restaurant
+      const hiddenRestaurants = restaurants.filter(r => (r as any).hidden);
+      let bestScore = -1;
+      hiddenRestaurants.forEach(r => {
+        const similarity = getSimilarity(r.name, searchText);
+        if (similarity > bestScore) {
+          bestScore = similarity;
+          bestHiddenMatch = { ...r, similarity };
+        }
+      });
+      // If the best hidden match is reasonably similar, show it at the top
+      if (bestHiddenMatch && bestScore >= 70) {
+        list = [bestHiddenMatch, ...list.filter(r => r.id !== bestHiddenMatch!.id)];
+      }
+      // Reorder by similarity, do not filter out
+      const search = searchText.trim().toLowerCase();
+      list = [...list]
+        .map(r => ({
+          ...r,
+          similarity: getSimilarity(r.name, searchText)
+        }))
+        .sort((a, b) => b.similarity - a.similarity);
+    } else if (locationFilter) {
       // If location filter is active, sort by distance
       list = list
         .map(r => {
@@ -157,18 +251,9 @@ const HomeScreen = () => {
           return { ...r, distance: Infinity };
         })
         .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-    } else if (searchText.trim()) {
-      // Reorder by similarity, do not filter out
-      const search = searchText.trim().toLowerCase();
-      list = [...list]
-        .map(r => ({
-          ...r,
-          similarity: getSimilarity(r.name, searchText)
-        }))
-        .sort((a, b) => b.similarity - a.similarity);
     }
     return list;
-  }, [visibleRestaurants, searchText, locationFilter]);
+  }, [restaurants, searchText, locationFilter]);
 
   const uploadMenuImage = async (base64: string, restaurantName: string, location: { lat: number; lng: number }) => {
     try {
@@ -185,7 +270,6 @@ const HomeScreen = () => {
       const data = await response.json();
       if (data.success && data.gemini && data.mongo) {
         console.log('Image processed by Gemini and uploaded to MongoDB!');
-        Alert.alert('Success', 'Image processed and uploaded!');
       } else {
         console.log('Processing or upload failed:', data);
         Alert.alert('Error', 'Processing or upload failed.');
@@ -264,15 +348,77 @@ const HomeScreen = () => {
       return;
     }
     setRestaurantNameModalVisible(false);
+    setShowLoadingOverlay(true);
     if (pendingImageBase64 && pendingLocation) {
-      await uploadMenuImage(pendingImageBase64, restaurantNameInput.trim(), pendingLocation);
+      // Get Google-matched name and location before upload
+      const googleResult = await getGoogleMatchedNameAndLocation(restaurantNameInput.trim(), pendingLocation);
+      let useName = googleResult.name;
+      let useLocation = pendingLocation;
+      // If the Google location is within 100 meters of the user's location, use it
+      if (googleResult.location) {
+        const dist = getDistanceMeters(
+          pendingLocation.lat,
+          pendingLocation.lng,
+          googleResult.location.lat,
+          googleResult.location.lng
+        );
+        // Always use Google location if matched for accuracy
+        useLocation = googleResult.location;
+      }
+      // Upload and handle response
+      const response = await fetch(`${BASE_URL}/api/upload-menu`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: pendingImageBase64,
+          restaurantName: useName,
+          location: useLocation,
+        }),
+      });
+      const data = await response.json();
       setPendingImageBase64(null);
       setPendingImageUri(null);
       setPendingLocation(null);
       setRestaurantNameInput('');
-      // Refresh restaurant list
-      setLoading(true);
-      await fetchRestaurants();
+      if (data.success && data.gemini && data.mongo) {
+        // Success: show overlays as before
+        const newList = await fetchRestaurants();
+        let newRestaurant = newList.find((r: any) => r.name?.toLowerCase() === useName.toLowerCase());
+        if (newRestaurant && useLocation) {
+          const closeMatch = newList.find((r: any) =>
+            r.name?.toLowerCase() === useName.toLowerCase() &&
+            r.latitude !== undefined && r.longitude !== undefined &&
+            getDistanceMeters(r.latitude, r.longitude, useLocation.lat, useLocation.lng) < 100
+          );
+          if (closeMatch) newRestaurant = closeMatch;
+        }
+        setTimeout(() => {
+          setShowLoadingOverlay(false);
+          setShowSuccessOverlay(true);
+          setTimeout(() => {
+            setShowSuccessOverlay(false);
+            if (newRestaurant) {
+              const matchStatus = newRestaurant.apimatch === 'google' ? 'Google API matched!' : 'No Google API match.';
+              console.log(`[Card] ${newRestaurant.name} apimatch: ${newRestaurant.apimatch} — ${matchStatus}`);
+              setNewlyAddedRestaurantId(newRestaurant.id);
+              Animated.sequence([
+                Animated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+                Animated.delay(1000),
+                Animated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
+              ]).start(() => setNewlyAddedRestaurantId(null));
+            }
+          }, 1000);
+        }, 1800);
+      } else if (data.reason === 'no_menu') {
+        setShowLoadingOverlay(false);
+        setShowSuccessOverlay(false);
+        setShowNoMenuModal(true);
+        return;
+      } else {
+        setShowLoadingOverlay(false);
+        setShowSuccessOverlay(false);
+        Alert.alert('Error', 'Processing or upload failed.');
+      }
     }
   };
 
@@ -305,27 +451,225 @@ const HomeScreen = () => {
 
   const handleDeleteRestaurant = async () => {
     if (!restaurantToDelete) return;
+    setDeleting(true);
     try {
+      // Log the ID for debugging
+      console.log('Deleting restaurant with id:', restaurantToDelete.id);
       const response = await fetch(`${BASE_URL}/api/restaurants`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: restaurantToDelete.id, hidden: true }),
       });
-      if (response.ok) {
-        setRestaurants(prev => prev.map(r => r.id === restaurantToDelete.id ? { ...r, hidden: true } : r));
+      const data = await response.json();
+      if (response.ok && data.success) {
+        // Always refresh from backend after delete
+        await fetchRestaurants();
       } else {
-        Alert.alert('Error', 'Failed to hide restaurant.');
+        Alert.alert('Error', data.error || 'Failed to hide restaurant.');
       }
-    } catch (e) {
-      Alert.alert('Error', 'Failed to hide restaurant.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to hide restaurant.');
     } finally {
+      setDeleting(false);
       setDeleteModalVisible(false);
       setRestaurantToDelete(null);
     }
   };
 
+  useEffect(() => {
+    if (!searchText.trim()) {
+      setGoogleMatchedName(null);
+      return;
+    }
+    // Debounce API call
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+    debounceTimeout.current = setTimeout(async () => {
+      let lat = locationFilter?.lat;
+      let lng = locationFilter?.lng;
+      try {
+        const params = new URLSearchParams({
+          restaurantName: searchText,
+          lat: lat ? String(lat) : '0',
+          lng: lng ? String(lng) : '0',
+        });
+        const res = await fetch(`${BASE_URL}/api/maps?${params.toString()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.apimatch === 'google' && data.googlePlace && data.googlePlace.name) {
+            if (data.googlePlace.name !== searchText) {
+              setGoogleMatchedName(data.googlePlace.name);
+              setSearchText(data.googlePlace.name);
+            }
+            // Update locationFilter to Google-provided lat/lng if different
+            if (
+              data.googlePlace.location &&
+              (data.googlePlace.location.lat !== locationFilter?.lat || data.googlePlace.location.lng !== locationFilter?.lng)
+            ) {
+              setLocationFilter({
+                lat: data.googlePlace.location.lat,
+                lng: data.googlePlace.location.lng,
+              });
+            }
+          }
+        }
+      } catch (e) {}
+    }, 600);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchText, locationFilter]);
+
+  // Fade-in effect when navigating home after success
+  useEffect(() => {
+    if ((route as any).params?.fadeIn) {
+      setShowHomeFadeIn(true);
+      homeFadeAnim.setValue(0);
+      Animated.timing(homeFadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }).start(() => {
+        setShowHomeFadeIn(false);
+        (navigation as any).setParams?.({ fadeIn: undefined });
+      });
+    }
+  }, [route]);
+
+  const RestaurantCard = ({
+    item,
+    isNew,
+    cardAnim,
+    locationFilter,
+    distance,
+    handlePress,
+    handleLongPress,
+  }: {
+    item: RestaurantWithDistance & { apimatch?: string };
+    isNew: boolean;
+    cardAnim: Animated.Value;
+    locationFilter: { lat: number; lng: number } | null;
+    distance: number | null;
+    handlePress: (item: RestaurantWithDistance) => void;
+    handleLongPress: (item: RestaurantWithDistance) => void;
+  }) => {
+    const [pressed, setPressed] = React.useState(false);
+    const isCustom = item.apimatch !== 'google';
+    // Animation: green->white for google, gray->white for custom
+    const animatedBg = isNew
+      ? cardAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: isCustom ? ['#fff', '#e5e5e5'] : ['#fff', '#22c55e'],
+        })
+      : pressed
+        ? '#e5e5e5'
+        : '#fff';
+    const textColor = isNew
+      ? cardAnim.interpolate({ inputRange: [0, 1], outputRange: ['#000', isCustom ? '#000' : '#fff'] })
+      : '#000';
+    return (
+      <LongPressGestureHandler
+        onHandlerStateChange={({ nativeEvent }) => {
+          if (nativeEvent.state === GestureState.ACTIVE) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            handleLongPress(item);
+          }
+        }}
+        minDurationMs={600}
+      >
+        <View>
+          <AnimatedTouchableOpacity
+            activeOpacity={0.7}
+            onPressIn={() => setPressed(true)}
+            onPressOut={() => setPressed(false)}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handlePress(item);
+            }}
+            style={[
+              styles.card,
+              { backgroundColor: animatedBg, borderColor: isNew ? (isCustom ? '#888' : '#22c55e') : '#000', flexDirection: 'row', alignItems: 'center' },
+            ]}
+          >
+            {/* Always reserve space for the logo */}
+            {item.apimatch === 'google' && item.brandLogo ? (
+              <Image source={{ uri: item.brandLogo }} style={{ width: 28, height: 28, marginRight: 0 }} resizeMode="contain" />
+            ) : (
+              <View style={{ width: 28, height: 28, marginRight: 0 }} />
+            )}
+            <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', marginLeft: 50 }}>
+              <Animated.Text style={[
+                styles.name,
+                { color: textColor, fontStyle: isCustom ? 'italic' : 'normal', textAlign: 'left', alignSelf: 'flex-start' }
+              ]}>
+                {item.displayName || item.name}
+              </Animated.Text>
+              {locationFilter && distance !== null && (
+                <Text style={[styles.distanceText, { textAlign: 'left', alignSelf: 'flex-start' }]}> 
+                  <Text style={{ fontStyle: 'italic', color: '#555' }}>{distance.toFixed(1)} miles away</Text>
+                </Text>
+              )}
+            </View>
+          </AnimatedTouchableOpacity>
+        </View>
+      </LongPressGestureHandler>
+    );
+  };
+
+  // Crossfade from magnifier to caution when no menu is detected
+  useEffect(() => {
+    if (showNoMenuModal) {
+      magnifierFadeAnim.setValue(1);
+      cautionFadeAnim.setValue(0);
+      // Show magnifier for 2.5s, then crossfade to caution for 1.2s, then fade out and go home
+      const magnifierTimeout = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(magnifierFadeAnim, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cautionFadeAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          })
+        ]).start();
+        // After caution is shown for 2.5s, fade out and go home
+        setTimeout(() => {
+          Animated.timing(cautionFadeAnim, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }).start(() => {
+            setShowNoMenuModal(false);
+            navigation.navigate('Home');
+          });
+        }, 2500);
+      }, 2500);
+      return () => clearTimeout(magnifierTimeout);
+    }
+  }, [showNoMenuModal]);
+
+  // Success overlay: fade out overlay before navigating home
+  useEffect(() => {
+    if (showSuccessOverlay) {
+      successOverlayAnim.setValue(1);
+      const timeout = setTimeout(() => {
+        Animated.timing(successOverlayAnim, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }).start(() => {
+          setShowSuccessOverlay(false);
+          (navigation as any).navigate('Home', { fadeIn: true });
+        });
+      }, 1200); // Show for 1.2s, then fade out overlay
+      return () => clearTimeout(timeout);
+    }
+  }, [showSuccessOverlay]);
+
   return (
     <GestureHandlerRootView style={styles.container}>
+      {/* Overlays should be rendered last so they are above all content */}
+      {/* Main content */}
       {/* User name in top left */}
       {userFirstName ? (
         <View style={styles.userNameContainer}>
@@ -370,7 +714,6 @@ const HomeScreen = () => {
       ) : (
         <ScrollView contentContainerStyle={styles.listContainer}>
           {filteredRestaurants.map((item) => {
-            // Calculate distance if locationFilter is active and restaurant has coordinates
             let distance: number | null = null;
             if (
               locationFilter &&
@@ -384,30 +727,18 @@ const HomeScreen = () => {
                 item.longitude
               );
             }
+            const isNew = newlyAddedRestaurantId === item.id;
             return (
-              <LongPressGestureHandler
+              <RestaurantCard
                 key={item.id}
-                onHandlerStateChange={({ nativeEvent }) => {
-                  if (nativeEvent.state === GestureState.ACTIVE) {
-                    handleLongPress(item);
-                  }
-                }}
-                minDurationMs={600}
-              >
-                <View>
-                  <TouchableOpacity
-                    style={styles.card}
-                    onPress={() => handlePress(item)}
-                  >
-                    <Text style={styles.name}>{item.name}</Text>
-                    {locationFilter && distance !== null && (
-                      <Text style={styles.distanceText}>
-                        <Text style={{ fontStyle: 'italic', color: '#555' }}>{distance.toFixed(1)} miles away</Text>
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </LongPressGestureHandler>
+                item={item}
+                isNew={isNew}
+                cardAnim={cardAnim}
+                locationFilter={locationFilter}
+                distance={distance}
+                handlePress={handlePress}
+                handleLongPress={handleLongPress}
+              />
             );
           })}
         </ScrollView>
@@ -431,6 +762,43 @@ const HomeScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Loading Overlay - render last so it's above everything */}
+      {showLoadingOverlay && !showNoMenuModal && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
+          <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <AnimatedMagnifierPeanut />
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 32 }}>
+              <Text style={{ fontSize: 22, color: '#DA291C', fontWeight: 'bold', letterSpacing: 1 }}>Finding allergens</Text>
+              <AnimatedDots />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {showSuccessOverlay && (
+        <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, opacity: successOverlayAnim }]} pointerEvents="auto">
+          <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <FadeInCheck visible={showSuccessOverlay} />
+          </View>
+        </Animated.View>
+      )}
+
+      {showNoMenuModal && (
+        <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
+          <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Animated.View style={{ position: 'absolute', opacity: magnifierFadeAnim }}>
+              <AnimatedMagnifierPeanut />
+            </Animated.View>
+            <Animated.View style={{ position: 'absolute', opacity: cautionFadeAnim }}>
+              <AnimatedCaution />
+            </Animated.View>
+          </View>
+        </Animated.View>
+      )}
 
       <Modal
         visible={restaurantNameModalVisible}
@@ -482,13 +850,19 @@ const HomeScreen = () => {
               <TouchableOpacity
                 style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
                 onPress={handleDeleteRestaurant}
+                disabled={deleting}
               >
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Delete</Text>
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      {/* Home fade-in overlay */}
+      {showHomeFadeIn && (
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: homeFadeAnim, zIndex: 9998 }]} pointerEvents="none" />
+      )}
     </GestureHandlerRootView>
   );
 };
@@ -633,5 +1007,92 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+// AnimatedMagnifierPeanut: magnifying glass animates in a tight circle, centered on the screen, with text below
+const AnimatedMagnifierPeanut = () => {
+  const [angle, setAngle] = React.useState(0);
+  const iconSize = 120;
+  const radius = 36; // much tighter circle
+  const centerX = 0; // will use flex layout for centering
+  const centerY = 0;
+
+  React.useEffect(() => {
+    let running = true;
+    let start = Date.now();
+    function animate() {
+      if (!running) return;
+      const now = Date.now();
+      const t = ((now - start) % 2000) / 2000; // 2s loop
+      setAngle(t * 2 * Math.PI);
+      requestAnimationFrame(animate);
+    }
+    animate();
+    return () => { running = false; };
+  }, []);
+
+  // The icon will be centered in a flex container, and the circle will be relative to that center
+  const x = radius * Math.cos(angle);
+  const y = radius * Math.sin(angle);
+
+  return (
+    <View style={{ width: iconSize * 2, height: iconSize * 2, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', left: '50%', top: '50%', marginLeft: -iconSize / 2 + x, marginTop: -iconSize / 2 + y }}>
+        <FontAwesome5 name="search" size={iconSize} color="#DA291C" solid style={{ fontWeight: 'bold' }} />
+      </View>
+    </View>
+  );
+};
+
+// AnimatedDots for 'Finding allergens...'
+const AnimatedDots = () => {
+  const [dotCount, setDotCount] = React.useState(0);
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setDotCount((prev) => (prev + 1) % 4);
+    }, 400);
+    return () => clearInterval(interval);
+  }, []);
+  return <Text style={{ color: '#DA291C', fontSize: 22, fontWeight: 'bold' }}>{'.'.repeat(dotCount)}</Text>;
+};
+
+// Restore FadeInCheck with internal animation and visible prop
+const FadeInCheck = ({ visible }: { visible: boolean }) => {
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    if (visible) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [visible]);
+  return (
+    <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
+      <Feather name="check" size={120} color="#22c55e" style={{ fontWeight: 'bold' }} />
+      <Text style={{ marginTop: 32, fontSize: 36, color: '#22c55e', fontWeight: 'bold', letterSpacing: 1 }}>Success!</Text>
+    </Animated.View>
+  );
+};
+
+// AnimatedCaution: yellow caution symbol with text, for no menu detected
+const AnimatedCaution = () => {
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+  return (
+    <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
+      <Feather name="alert-triangle" size={120} color="#FFD600" style={{ fontWeight: 'bold' }} />
+      <Text style={{ marginTop: 32, fontSize: 36, color: '#FFD600', fontWeight: 'bold', letterSpacing: 1 }}>No Menu Detected</Text>
+    </Animated.View>
+  );
+};
 
 export default HomeScreen;

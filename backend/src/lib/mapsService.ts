@@ -76,6 +76,7 @@ interface GoogleMapsMatch {
       lat: number;
       lng: number;
     };
+    icon?: string;
   };
 }
 
@@ -98,26 +99,47 @@ export async function checkGoogleMapsRestaurant(
     });
 
     const url = `${baseUrl}?${params.toString()}`;
+    console.log(`[GoogleMatch] Querying for: '${restaurantName}' at`, location);
     const response = await fetch(url);
     const data = await response.json();
 
     if (data.status === "OK" && data.results.length > 0) {
-      const bestMatch = data.results[0];
-      const nameSimilarity = calculateStringSimilarity(bestMatch.name, restaurantName);
-      
-      // Only consider it a match if name similarity is >= 80%
-      const isMatch = nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD;
-      
-      return {
-        found: isMatch,
-        googlePlace: isMatch ? {
-          name: bestMatch.name,
-          location: {
-            lat: bestMatch.geometry.location.lat,
-            lng: bestMatch.geometry.location.lng,
+      // Check all results for best match
+      let bestMatch = null;
+      let bestSimilarity = 0;
+      let bestDist = null;
+      for (const result of data.results) {
+        const nameSimilarity = calculateStringSimilarity(result.name, restaurantName);
+        const dist = calculateDistance(
+          { lat: result.geometry.location.lat, lng: result.geometry.location.lng },
+          location
+        );
+        if (nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD && nameSimilarity > bestSimilarity && dist <= RESTAURANT_DISTANCE_THRESHOLD) {
+          bestMatch = result;
+          bestSimilarity = nameSimilarity;
+          bestDist = dist;
+        }
+      }
+      if (bestMatch) {
+        const distValue = bestDist ?? 0;
+        const willOverwrite = bestMatch.name !== restaurantName || distValue > 0;
+        console.log(`[GoogleMatch] ✅ MATCH: '${bestMatch.name}' (similarity: ${bestSimilarity}, distance: ${distValue}m). Overwrite: ${willOverwrite ? 'YES' : 'NO'}`);
+        return {
+          found: true,
+          googlePlace: {
+            name: bestMatch.name,
+            location: {
+              lat: bestMatch.geometry.location.lat,
+              lng: bestMatch.geometry.location.lng,
+            },
+            ...(bestMatch.icon ? { icon: bestMatch.icon } : {})
           }
-        } : undefined
-      };
+        };
+      } else {
+        console.log('[GoogleMatch] ❌ No result passed similarity and distance thresholds.');
+      }
+    } else {
+      console.log('[GoogleMatch] ❌ No results from Google API.');
     }
 
     return {

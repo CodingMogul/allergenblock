@@ -4,6 +4,7 @@ import { calculateStringSimilarity, calculateDistance } from "../utils/stringSim
 import { findBestMatchingMenu } from "../utils/menuMatcher";
 import { RESTAURANT_SIMILARITY_THRESHOLD, RESTAURANT_DISTANCE_THRESHOLD } from "@/utils/constants";
 import { ObjectId } from "mongodb";
+import { fetchLogoUrl } from './logoService';
 
 // Generic interface for menu data from any source
 interface MenuData {
@@ -70,6 +71,12 @@ export async function storeRestaurantWithMenu(
     // Check Google Maps for restaurant match
     const googleMatch = await checkGoogleMapsRestaurant(menuData.restaurantName, menuData.location);
     
+    // Fetch logo if Google match is found
+    let brandLogo: string | null = null;
+    if (googleMatch.found && googleMatch.googlePlace && googleMatch.googlePlace.name) {
+      brandLogo = await fetchLogoUrl(googleMatch.googlePlace.name);
+    }
+    
     // Find restaurants with similar names
     const existingRestaurants = await db.db.collection("restaurants").find({}).toArray();
     
@@ -84,9 +91,17 @@ export async function storeRestaurantWithMenu(
       return nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD && distance <= RESTAURANT_DISTANCE_THRESHOLD;
     });
 
+    // Overwrite restaurantName with Google Place name if matched
+    const finalRestaurantName = (googleMatch.found && googleMatch.googlePlace && googleMatch.googlePlace.name)
+      ? googleMatch.googlePlace.name
+      : menuData.restaurantName;
+
     const restaurantData = {
-      restaurantName: menuData.restaurantName,
-      location: {
+      restaurantName: finalRestaurantName,
+      location: googleMatch.found && googleMatch.googlePlace ? {
+        type: "Point",
+        coordinates: [googleMatch.googlePlace.location.lng, googleMatch.googlePlace.location.lat]
+      } : {
         type: "Point",
         coordinates: [menuData.location.lng, menuData.location.lat]
       },
@@ -98,15 +113,16 @@ export async function storeRestaurantWithMenu(
       source: menuData.source,
       apimatch: googleMatch.found ? 'google' : 'none',
       ...(googleMatch.googlePlace && { googlePlace: googleMatch.googlePlace }),
+      ...(brandLogo ? { brandLogo } : {}),
       updatedAt: new Date()
     };
 
     if (similarRestaurant) {
-      // Update existing restaurant with new menu data
-      console.log('Similar restaurant found, updating menu data:', menuData.restaurantName);
+      // Update existing restaurant with new menu data and unhide it
+      console.log('Similar restaurant found, updating menu data and unhiding:', menuData.restaurantName);
       await db.db.collection("restaurants").updateOne(
         { _id: similarRestaurant._id },
-        { $set: restaurantData }
+        { $set: { ...restaurantData, hidden: false } }
       );
     } else {
       // Create new restaurant document with menu data

@@ -27,13 +27,15 @@ export async function requestCameraCapture(
 /**
  * Processes the captured image from the camera
  * @param imageData - The image data captured from the camera (can be a File, Blob, or base64 string)
- * @returns Processed menu items with source information
+ * @returns Processed menu items with source information, or all-null object if no menu found
  */
 export async function processCameraImage(
   imageData: string | { path: string }
 ): Promise<{
-  menuItems: Array<{name: string, allergens: string[]}>;
-  source: 'camera';
+  restaurantName?: string | null;
+  location?: any | null;
+  menuItems: Array<{name: string, allergens: string[]}> | null;
+  source: 'camera' | null;
 }> {
   console.log('🔍 Processing camera image');
   
@@ -60,6 +62,15 @@ export async function processCameraImage(
     // Process the image with Gemini AI
     const menuItems = await processImageWithGemini(base64Image);
     
+    // If no menu items found, return all-null object for no_menu handling
+    if (!menuItems || menuItems.length === 0) {
+      return {
+        restaurantName: null,
+        location: null,
+        menuItems: null,
+        source: null
+      };
+    }
     // Return menu items with source information
     return {
       menuItems,
