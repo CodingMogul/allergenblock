@@ -14,6 +14,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types/navigation';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Feather } from '@expo/vector-icons';
+import { BASE_URL } from '../../config';
 
 const ALLERGENS = [
   { id: 'dairy', name: 'Dairy', emoji: '🥛' },
@@ -158,7 +159,7 @@ export default function ProfileSetup() {
               setFirstName(text);
               setFirstNameError('');
             }}
-            placeholderTextColor="#666"
+            placeholderTextColor="#aaa"
           />
           {firstNameError ? <Text style={styles.errorText}>{firstNameError}</Text> : null}
           
@@ -170,7 +171,7 @@ export default function ProfileSetup() {
               setLastName(text);
               setLastNameError('');
             }}
-            placeholderTextColor="#666"
+            placeholderTextColor="#aaa"
           />
           {lastNameError ? <Text style={styles.errorText}>{lastNameError}</Text> : null}
         </View>
@@ -240,11 +241,10 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 50,
-    borderWidth: 1,
-    borderColor: '#ddd',
+    borderWidth: 0,
     borderRadius: 8,
     paddingHorizontal: 16,
-    fontSize: 16,
+    fontSize: 22,
     fontFamily: 'Inter',
     marginBottom: 8,
   },

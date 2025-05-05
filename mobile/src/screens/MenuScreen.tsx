@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   Modal,
   Image,
+  Alert,
+  TextInput,
 } from 'react-native';
 import {
   TapGestureHandler,
@@ -24,9 +26,9 @@ import Animated, {
   useAnimatedGestureHandler,
   runOnJS,
 } from 'react-native-reanimated';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { BASE_URL } from './config'; // Ensure this file holds your machine's IP
+import { BASE_URL } from '../../config';
 import { Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
@@ -78,37 +80,61 @@ export default function MenuScreen() {
   const [selectedAllergens, setSelectedAllergens] = useState<AllergenId[]>([]);
   const [saving, setSaving] = useState(false);
   const [profileAllergens, setProfileAllergens] = useState<AllergenId[]>([]);
+  const [latestRestaurant, setLatestRestaurant] = useState<typeof restaurant>(restaurant);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editNameInput, setEditNameInput] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
-  useEffect(() => {
-    const fetchMenu = async () => {
-      try {
-        const res = await fetch(`${BASE_URL}/api/menuDetails/${restaurant.id}`);
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        const text = await res.text();
+  useFocusEffect(
+    React.useCallback(() => {
+      let isActive = true;
+      const fetchRestaurant = async () => {
         try {
-          const data = JSON.parse(text);
-          const mapped = data.menuItems.map((item: any, index: number) => ({
-            id: index.toString(),
-            name: item.name,
-            allergens: item.allergens || [],
-          }));
-          setMenu(mapped);
-        } catch (parseError) {
-          console.error("JSON Parse error:", text.substring(0, 100));
-          throw parseError;
+          const res = await fetch(`${BASE_URL}/api/restaurants`);
+          if (!res.ok) throw new Error('Failed to fetch restaurants');
+          const data = await res.json();
+          const found = data.find((r: any) => r.id === restaurant.id);
+          if (found && isActive) setLatestRestaurant(found);
+        } catch (e) {
+          if (isActive) setLatestRestaurant(restaurant);
         }
-      } catch (error) {
-        console.error("Failed to fetch menu:", error);
-        setMenu([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+      };
+      fetchRestaurant();
+      return () => { isActive = false; };
+    }, [restaurant.id])
+  );
 
-    fetchMenu();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      let isActive = true;
+      const fetchMenu = async () => {
+        try {
+          const res = await fetch(`${BASE_URL}/api/menuDetails/${restaurant.id}`);
+          if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+          }
+          const text = await res.text();
+          try {
+            const data = JSON.parse(text);
+            const mapped = data.menuItems.map((item: any, index: number) => ({
+              id: index.toString(),
+              name: item.name,
+              allergens: item.allergens || [],
+            }));
+            if (isActive) setMenu(mapped);
+          } catch (parseError) {
+            throw parseError;
+          }
+        } catch (error) {
+          if (isActive) setMenu([]);
+        } finally {
+          if (isActive) setLoading(false);
+        }
+      };
+      fetchMenu();
+      return () => { isActive = false; };
+    }, [restaurant.id])
+  );
 
   // Load profile allergens from AsyncStorage on mount
   useEffect(() => {
@@ -165,6 +191,70 @@ export default function MenuScreen() {
 
   // Use profileAllergens for allergen matching
   const userAllergies = profileAllergens.length > 0 ? profileAllergens : ['peanuts', 'gluten', 'dairy'];
+
+  // Helper: Google match logic (reuse from HomeScreen)
+  async function getGoogleMatchedNameAndLocation(inputName: string, location: { lat: number; lng: number }) {
+    try {
+      const params = new URLSearchParams({
+        restaurantName: inputName,
+        lat: String(location.lat),
+        lng: String(location.lng),
+      });
+      const res = await fetch(`${BASE_URL}/api/maps?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.apimatch === 'google' && data.googlePlace && data.googlePlace.name && data.googlePlace.location) {
+          return {
+            name: data.googlePlace.name,
+            location: data.googlePlace.location,
+          };
+        }
+      }
+    } catch {}
+    return { name: inputName, location };
+  }
+
+  // Handler to open edit modal
+  const handleEditRestaurantName = () => {
+    setEditNameInput(
+      latestRestaurant.displayName || latestRestaurant.name
+    );
+    setEditModalVisible(true);
+  };
+
+  // Handler to submit edit
+  const handleEditNameSubmit = async () => {
+    if (!editNameInput.trim()) return;
+    setEditSaving(true);
+    let newName = editNameInput.trim();
+    let newLocation = null;
+    let lat = (latestRestaurant as any).latitude ?? (latestRestaurant as any).googlePlace?.location?.lat;
+    let lng = (latestRestaurant as any).longitude ?? (latestRestaurant as any).googlePlace?.location?.lng;
+    if (lat && lng) {
+      const googleResult = await getGoogleMatchedNameAndLocation(newName, { lat, lng });
+      newName = googleResult.name;
+      newLocation = googleResult.location;
+    }
+    try {
+      const res = await fetch(`${BASE_URL}/api/restaurants`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: latestRestaurant.id, newName, newLocation }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setEditModalVisible(false);
+        setEditNameInput('');
+        // Refetch restaurant info (will auto-update via useFocusEffect)
+      } else {
+        Alert.alert('Error', data.error || 'Failed to update restaurant name.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update restaurant name.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
 
   const Card = ({ item, index }: { item: MenuItem; index: number }) => {
     // Calculate actual allergen matches from the item's allergens
@@ -278,19 +368,60 @@ export default function MenuScreen() {
       </Modal>
 
       <View style={{ alignItems: 'center', marginBottom: 8 }}>
-        {restaurant.apimatch === 'google' && restaurant.brandLogo && (
-          <Image source={{ uri: restaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
+        {latestRestaurant.apimatch === 'google' && latestRestaurant.brandLogo && (
+          <Image source={{ uri: latestRestaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
         )}
-        <Text style={styles.header}>
-          {
-            restaurant.apimatch === 'google' && restaurant.googlePlace && restaurant.googlePlace.name
-              ? `${restaurant.googlePlace.name} Menu`
-              : restaurant.displayName
-                ? `${restaurant.displayName} Menu`
-                : `${restaurant.name} Menu`
-          }
-        </Text>
+        <Pressable
+          onLongPress={handleEditRestaurantName}
+          delayLongPress={500}
+          style={{ width: '100%' }}
+        >
+          <Text style={styles.header}>
+            {
+              latestRestaurant.apimatch === 'google' && latestRestaurant.googlePlace && latestRestaurant.googlePlace.name
+                ? `${latestRestaurant.googlePlace.name} Menu`
+                : latestRestaurant.displayName
+                  ? `${latestRestaurant.displayName} Menu`
+                  : `${latestRestaurant.name} Menu`
+            }
+          </Text>
+        </Pressable>
       </View>
+
+      {/* Edit Restaurant Name Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setEditModalVisible(false)}
+        >
+          <Pressable
+            style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Edit Restaurant Name</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16 }}
+              placeholder="Restaurant Name"
+              value={editNameInput}
+              onChangeText={setEditNameInput}
+              autoFocus
+              editable={!editSaving}
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
+              onPress={handleEditNameSubmit}
+              disabled={editSaving}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{editSaving ? 'Saving...' : 'Save'}</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {loading ? (
         <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />

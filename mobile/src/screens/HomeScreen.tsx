@@ -12,11 +12,12 @@ import {
   Image,
   Button,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { BASE_URL } from './config';
+import { BASE_URL } from '../../config';
 import {
   TapGestureHandler,
   TapGestureHandlerEventPayload,
@@ -25,7 +26,7 @@ import {
   State as GestureState,
 } from 'react-native-gesture-handler';
 import * as ImagePicker from 'expo-image-picker';
-import { MaterialIcons, Feather, FontAwesome5 } from '@expo/vector-icons';
+import { MaterialIcons, Feather, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -148,12 +149,27 @@ const HomeScreen = () => {
   const [showHomeFadeIn, setShowHomeFadeIn] = useState(false);
   const homeFadeAnim = useRef(new Animated.Value(0)).current;
   const [successOverlayAnim] = useState(new Animated.Value(1));
+  // Add state for edit modal
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editNameInput, setEditNameInput] = useState('');
+  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [networkError, setNetworkError] = useState(false);
 
   const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
   // Fetch restaurants function (moved outside useEffect for reuse)
   const fetchRestaurants = async () => {
+    let timeout: NodeJS.Timeout | null = null;
     try {
+      setNetworkError(false);
+      setLoading(true);
+      // Start 4-second timeout for network error
+      timeout = setTimeout(() => {
+        setNetworkError(true);
+        setLoading(false);
+      }, 4000);
       const res = await fetch(`${BASE_URL}/api/restaurants`);
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
@@ -162,29 +178,40 @@ const HomeScreen = () => {
       try {
         const data = JSON.parse(text);
         setRestaurants(data);
-        console.log('Fetched restaurants:', data);
-        data.forEach((r: any) => {
-          console.log(
-            `[Restaurant] id: ${r.id}, name: "${r.name}", displayName: "${r.displayName}", apimatch: "${r.apimatch}"`
-          );
-        });
+        setNetworkError(false);
+        if (timeout) clearTimeout(timeout);
+        setLoading(false);
+        setRefreshing(false);
         return data;
       } catch (parseError) {
-        console.error("JSON Parse error:", text.substring(0, 100));
+        setNetworkError(true);
+        if (timeout) clearTimeout(timeout);
+        setLoading(false);
+        setRefreshing(false);
         throw parseError;
       }
     } catch (error) {
-      console.error("Error loading restaurants:", error);
+      setNetworkError(true);
+      if (timeout) clearTimeout(timeout);
       setRestaurants([]);
-      return [];
-    } finally {
       setLoading(false);
+      setRefreshing(false);
+      return [];
     }
   };
 
   useEffect(() => {
+    setLoading(true);
+    setNetworkError(false);
     fetchRestaurants();
   }, []);
+
+  // Refetch restaurants on focus
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchRestaurants();
+    }, [])
+  );
 
   useEffect(() => {
     const loadUserName = async () => {
@@ -309,37 +336,8 @@ const HomeScreen = () => {
     }
   };
 
-  const takePhoto = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      alert('Sorry, we need camera permissions to make this work!');
-      return;
-    }
-    let result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
-    if (!result.canceled) {
-      setImage(result.assets[0].uri);
-      const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: 'base64' });
-      let location = locationFilter;
-      if (!location) {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({});
-          location = { lat: loc.coords.latitude, lng: loc.coords.longitude };
-          setLocationFilter(location);
-        } else {
-          location = { lat: 0, lng: 0 };
-        }
-      }
-      setPendingImageBase64(base64);
-      setPendingImageUri(result.assets[0].uri);
-      setPendingLocation(location);
-      setRestaurantNameInput('');
-      setRestaurantNameModalVisible(true);
-    }
+  const takePhoto = () => {
+    navigation.navigate('Camera');
   };
 
   const handleRestaurantNameSubmit = async () => {
@@ -533,6 +531,32 @@ const HomeScreen = () => {
     }
   }, [route]);
 
+  // Add useEffect to handle returned photoUri
+  useEffect(() => {
+    if ((route as any).params?.photoUri) {
+      const photoUri = (route as any).params.photoUri;
+      (async () => {
+        const base64 = await FileSystem.readAsStringAsync(photoUri, { encoding: 'base64' });
+        let location = locationFilter;
+        if (!location) {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            const loc = await Location.getCurrentPositionAsync({});
+            location = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+            setLocationFilter(location);
+          } else {
+            location = { lat: 0, lng: 0 };
+          }
+        }
+        setPendingImageBase64(base64);
+        setPendingImageUri(photoUri);
+        setPendingLocation(location);
+        setRestaurantNameInput('');
+        setRestaurantNameModalVisible(true);
+      })();
+    }
+  }, [route]);
+
   const RestaurantCard = ({
     item,
     isNew,
@@ -666,6 +690,54 @@ const HomeScreen = () => {
     }
   }, [showSuccessOverlay]);
 
+  // Edit handler
+  const handleEditRestaurant = (restaurant: Restaurant) => {
+    setEditingRestaurant(restaurant);
+    setEditNameInput(restaurant.displayName || restaurant.name);
+    setEditModalVisible(true);
+  };
+
+  // Submit edit
+  const handleEditNameSubmit = async () => {
+    if (!editingRestaurant || !editNameInput.trim()) return;
+    setEditSaving(true);
+    let newName = editNameInput.trim();
+    let newLocation = null;
+    // Use Google match logic
+    if (editingRestaurant.latitude && editingRestaurant.longitude) {
+      const googleResult = await getGoogleMatchedNameAndLocation(newName, { lat: editingRestaurant.latitude, lng: editingRestaurant.longitude });
+      newName = googleResult.name;
+      newLocation = googleResult.location;
+    }
+    try {
+      const res = await fetch(`${BASE_URL}/api/restaurants`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingRestaurant.id, newName, newLocation }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setEditModalVisible(false);
+        setEditingRestaurant(null);
+        setEditNameInput('');
+        await fetchRestaurants();
+      } else {
+        Alert.alert('Error', data.error || 'Failed to update restaurant name.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update restaurant name.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    setNetworkError(false);
+    setLoading(true);
+    fetchRestaurants();
+  }, []);
+
   return (
     <GestureHandlerRootView style={styles.container}>
       {/* Overlays should be rendered last so they are above all content */}
@@ -709,56 +781,60 @@ const HomeScreen = () => {
         />
       </View>
 
-      {loading ? (
-        <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text>
-      ) : (
-        <ScrollView contentContainerStyle={styles.listContainer}>
-          {filteredRestaurants.map((item) => {
-            let distance: number | null = null;
-            if (
-              locationFilter &&
-              typeof item.latitude === 'number' &&
-              typeof item.longitude === 'number'
-            ) {
-              distance = getDistance(
-                locationFilter.lat,
-                locationFilter.lng,
-                item.latitude,
-                item.longitude
-              );
-            }
-            const isNew = newlyAddedRestaurantId === item.id;
-            return (
-              <RestaurantCard
-                key={item.id}
-                item={item}
-                isNew={isNew}
-                cardAnim={cardAnim}
-                locationFilter={locationFilter}
-                distance={distance}
-                handlePress={handlePress}
-                handleLongPress={handleLongPress}
-              />
+      <ScrollView
+        contentContainerStyle={styles.listContainer}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ff4d4d" />}
+      >
+        {filteredRestaurants.map((item) => {
+          let distance: number | null = null;
+          if (
+            locationFilter &&
+            typeof item.latitude === 'number' &&
+            typeof item.longitude === 'number'
+          ) {
+            distance = getDistance(
+              locationFilter.lat,
+              locationFilter.lng,
+              item.latitude,
+              item.longitude
             );
-          })}
-        </ScrollView>
+          }
+          const isNew = newlyAddedRestaurantId === item.id;
+          return (
+            <RestaurantCard
+              key={item.id}
+              item={item}
+              isNew={isNew}
+              cardAnim={cardAnim}
+              locationFilter={locationFilter}
+              distance={distance}
+              handlePress={handlePress}
+              handleLongPress={handleLongPress}
+            />
+          );
+        })}
+        {loading && (
+          <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text>
+        )}
+      </ScrollView>
+
+      {/* Caution overlay for network error */}
+      {networkError && !loading && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 90, zIndex: 1000, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.92)' }} pointerEvents="box-none">
+          <Feather name="alert-triangle" size={64} color="#ffb3b3" />
+          <Text style={{ color: '#ff4d4d', fontSize: 18, marginTop: 18, fontWeight: 'bold' }}>Network error. Pull to refresh</Text>
+        </View>
       )}
 
       <View style={styles.bottomBar}>
-        <View style={styles.iconRow}>
+        <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
           <TouchableOpacity
-            style={styles.iconButton}
-            onPress={pickImage}
-            accessibilityLabel="Pick an image from camera roll"
+            style={[styles.iconButton, networkError && { opacity: 0.4 }]}
+            onPress={networkError ? undefined : takePhoto}
+            accessibilityLabel="Add menu photo"
+            disabled={networkError}
           >
-            <MaterialIcons name="insert-photo" size={32} color="#222" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={takePhoto}
-            accessibilityLabel="Take a photo"
-          >
-            <Feather name="camera" size={32} color="#222" />
+            <MaterialCommunityIcons name="peanut" size={40} color="#222" />
           </TouchableOpacity>
         </View>
       </View>
@@ -804,10 +880,30 @@ const HomeScreen = () => {
         visible={restaurantNameModalVisible}
         animationType="slide"
         transparent
-        onRequestClose={() => setRestaurantNameModalVisible(false)}
+        onRequestClose={() => {
+          setRestaurantNameModalVisible(false);
+          setPendingImageBase64(null);
+          setPendingImageUri(null);
+          setPendingLocation(null);
+          setRestaurantNameInput('');
+          navigation.navigate('Home');
+        }}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => {
+            setRestaurantNameModalVisible(false);
+            setPendingImageBase64(null);
+            setPendingImageUri(null);
+            setPendingLocation(null);
+            setRestaurantNameInput('');
+            navigation.navigate('Home');
+          }}
+        >
+          <Pressable
+            style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
+            onPress={(e) => e.stopPropagation()}
+          >
             <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Enter Restaurant Name</Text>
             <TextInput
               style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16 }}
@@ -822,8 +918,8 @@ const HomeScreen = () => {
             >
               <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Submit</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <Modal
@@ -848,15 +944,59 @@ const HomeScreen = () => {
                 <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
+                style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
                 onPress={handleDeleteRestaurant}
                 disabled={deleting}
               >
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
+                onPress={() => {
+                  setDeleteModalVisible(false);
+                  if (restaurantToDelete) handleEditRestaurant(restaurantToDelete);
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Edit</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Edit Restaurant Name Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
+          onPress={() => setEditModalVisible(false)}
+        >
+          <Pressable
+            style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Edit Restaurant Name</Text>
+            <TextInput
+              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16 }}
+              placeholder="Restaurant Name"
+              value={editNameInput}
+              onChangeText={setEditNameInput}
+              autoFocus
+              editable={!editSaving}
+            />
+            <TouchableOpacity
+              style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
+              onPress={handleEditNameSubmit}
+              disabled={editSaving}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{editSaving ? 'Saving...' : 'Save'}</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
       </Modal>
 
       {/* Home fade-in overlay */}

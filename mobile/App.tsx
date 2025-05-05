@@ -2,15 +2,16 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import MenuScreen from './MenuScreen';
-import HomeScreen from './HomeScreen';
-import ProfileScreen from './ProfileScreen';
+import MenuScreen from './src/screens/MenuScreen';
+import HomeScreen from './src/screens/HomeScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 import { RootStackParamList } from './types/navigation';
-import LoginScreen from './LoginScreen';
-import AllergenScreen from './AllergenScreen';
-import InstructionPage from './InstructionPage';
-import ProfileSetup from './ProfileSetup';
-import WelcomeScreen from './WelcomeScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import AllergenScreen from './src/screens/AllergenScreen';
+import InstructionPage from './src/screens/InstructionPage';
+import ProfileSetup from './src/screens/ProfileSetup';
+import WelcomeScreen from './src/screens/WelcomeScreen';
+import CameraScreen from './src/screens/CameraScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -74,6 +75,11 @@ export default function App() {
             headerShown: false,
             gestureEnabled: false,
           }}
+        />
+        <Stack.Screen
+          name="Camera"
+          component={CameraScreen}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>

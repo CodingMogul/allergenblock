@@ -1,0 +1,252 @@
+import React, { useRef, useState, useEffect } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../types/navigation'; // adjust path if needed
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+
+const CameraScreen = () => {
+  const [camera, setCamera] = useState<any>(null);
+  const [facing, setFacing] = useState<CameraType>('back');
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanMode, setScanMode] = useState<'scan' | 'gallery'>('scan');
+
+  const takePicture = async () => {
+    if (camera) {
+      const photo = await camera.takePictureAsync();
+      if (scanMode === 'scan') {
+        navigation.navigate('Home', { photoUri: photo.uri });
+      }
+    }
+  };
+
+  const pickImageFromGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync();
+    if (!result.canceled) {
+      navigation.navigate('Home', { photoUri: result.assets[0].uri });
+    }
+  };
+
+  if (!permission) {
+    return <View />;
+  }
+  if (!permission.granted) {
+    return (
+      <View style={styles.overlay}>
+        <Text style={{ color: '#222', marginBottom: 12 }}>We need your permission to show the camera</Text>
+        <TouchableOpacity onPress={requestPermission} style={styles.actionButton}>
+          <Text>Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <CameraView
+      style={{ flex: 1 }}
+      facing={facing}
+      ref={setCamera}
+    >
+      {/* X button in top left */}
+      <TouchableOpacity
+        style={{ position: 'absolute', top: 40, left: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 20, padding: 6 }}
+        onPress={() => navigation.goBack()}
+        accessibilityLabel="Close camera"
+      >
+        <Feather name="x" size={28} color="#222" />
+      </TouchableOpacity>
+
+      {/* White transparent box with corners */}
+      <View style={styles.centerBoxContainer} pointerEvents="none">
+        <View style={styles.centerBox}>
+          {/* Corners */}
+          <View style={[styles.corner, styles.cornerTL]} />
+          <View style={[styles.corner, styles.cornerTR]} />
+          <View style={[styles.corner, styles.cornerBL]} />
+          <View style={[styles.corner, styles.cornerBR]} />
+        </View>
+      </View>
+
+      {/* Mode buttons row above shutter */}
+      <View style={styles.modeButtonsRow}>
+        <TouchableOpacity
+          style={[
+            styles.smallModeButton,
+            scanMode === 'scan' ? styles.smallModeButtonActive : styles.smallModeButtonInactive,
+          ]}
+          onPress={() => setScanMode('scan')}
+        >
+          <MaterialCommunityIcons name="food" size={20} color="#222" />
+          <Text style={styles.smallModeButtonText}>Scan Menu</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.smallModeButton,
+            scanMode === 'gallery' ? styles.smallModeButtonActive : styles.smallModeButtonInactive,
+          ]}
+          onPress={pickImageFromGallery}
+        >
+          <Feather name="image" size={20} color="#222" />
+          <Text style={styles.smallModeButtonText}>Gallery</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Bottom row: Shutter only */}
+      <View style={styles.bottomBarRow}>
+        {/* Shutter button */}
+        <TouchableOpacity
+          style={styles.shutterButton}
+          onPress={scanMode === 'scan' ? takePicture : pickImageFromGallery}
+          accessibilityLabel="Shutter"
+        >
+          <View style={styles.shutterCircle} />
+        </TouchableOpacity>
+      </View>
+    </CameraView>
+  );
+};
+
+const styles = StyleSheet.create({
+  overlay: { flex: 1 },
+  centerBoxContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  centerBox: {
+    width: 360,
+    height: 650,
+    backgroundColor: 'transparent',
+    borderRadius: 24,
+    borderWidth: 0,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  corner: {
+    position: 'absolute',
+    width: 36,
+    height: 36,
+    borderColor: 'rgba(255,255,255,0.5)',
+  },
+  cornerTL: {
+    top: -15,
+    left: 0,
+    borderTopWidth: 8,
+    borderLeftWidth: 8,
+    borderTopLeftRadius: 16,
+  },
+  cornerTR: {
+    top: -15,
+    right: 0,
+    borderTopWidth: 8,
+    borderRightWidth: 8,
+    borderTopRightRadius: 16,
+  },
+  cornerBL: {
+    bottom: 30,
+    left: 0,
+    borderBottomWidth: 8,
+    borderLeftWidth: 8,
+    borderBottomLeftRadius: 16,
+  },
+  cornerBR: {
+    bottom: 30,
+    right: 0,
+    borderBottomWidth: 8,
+    borderRightWidth: 8,
+    borderBottomRightRadius: 16,
+  },
+  bottomBarRow: {
+    position: 'absolute',
+    bottom: 48,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  modeButtonsRow: {
+    position: 'absolute',
+    bottom: 140,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 11,
+    gap: 18,
+  },
+  smallModeButton: {
+    width: 88,
+    height: 56,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+    marginHorizontal: 8,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+  smallModeButtonActive: {
+    backgroundColor: 'rgba(255,255,255,1)',
+  },
+  smallModeButtonInactive: {
+    backgroundColor: 'rgba(255,255,255,0.5)',
+  },
+  smallModeButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#222',
+    marginTop: 2,
+  },
+  shutterButton: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 12,
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  shutterCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#eee',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderRadius: 32,
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    marginHorizontal: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  actionButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 10,
+    color: '#222',
+  },
+});
+
+export default CameraScreen; 

@@ -2,7 +2,8 @@ import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from './types/navigation';
+import { RootStackParamList } from '../../types/navigation';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function TitleScreen() {
   const logoTitleOpacity = useRef(new Animated.Value(0)).current;
@@ -14,7 +15,7 @@ export default function TitleScreen() {
     // Fade in logo and title together
     Animated.timing(logoTitleOpacity, {
       toValue: 1,
-      duration: 700,
+      duration: 280,
       useNativeDriver: true,
     }).start();
 
@@ -22,19 +23,19 @@ export default function TitleScreen() {
     const subtitleTimeout = setTimeout(() => {
       Animated.timing(subtitleOpacity, {
         toValue: 1,
-        duration: 700,
+        duration: 280,
         useNativeDriver: true,
       }).start();
-    }, 2500);
+    }, 1000);
 
     // Fade in continue button after 5 seconds
     const buttonTimeout = setTimeout(() => {
       Animated.timing(continueButtonOpacity, {
         toValue: 1,
-        duration: 700,
+        duration: 280,
         useNativeDriver: true,
       }).start();
-    }, 5000);
+    }, 2000);
 
     return () => {
       clearTimeout(subtitleTimeout);
@@ -48,7 +49,18 @@ export default function TitleScreen() {
 
   return (
     <View style={styles.container}>
-      <Animated.Text style={[styles.logo, { opacity: logoTitleOpacity }]}>🥜</Animated.Text>
+      <Animated.View style={{ opacity: logoTitleOpacity }}>
+        <MaterialCommunityIcons
+          name="peanut"
+          size={96}
+          color="#DA291C"
+          style={{
+            marginBottom: 15,
+            textAlign: 'center',
+            transform: [{ rotate: '-30deg' }],
+          }}
+        />
+      </Animated.View>
       <Animated.Text style={[styles.title, { opacity: logoTitleOpacity }]}>
         <Text style={styles.epi}>Epi</Text>
         <Text style={styles.eats}>Eats</Text>
@@ -72,11 +84,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingTop: 250,
-  },
-  logo: {
-    fontSize: 64,
-    marginBottom: 40,
-    textAlign: 'center',
   },
   title: {
     flexDirection: 'row',

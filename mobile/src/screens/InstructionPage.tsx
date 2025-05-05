@@ -23,7 +23,7 @@ export default function InstructionPage() {
     // 1. Fade in title in center
     Animated.timing(titleOpacity, {
       toValue: 1,
-      duration: 800,
+      duration: 320,
       useNativeDriver: true,
     }).start();
 
@@ -31,37 +31,37 @@ export default function InstructionPage() {
     setTimeout(() => {
       Animated.timing(titlePosition, {
         toValue: 1,
-        duration: 800,
+        duration: 320,
         useNativeDriver: true,
       }).start();
-    }, 2500);
+    }, 1000);
 
     // 3. After title moves, fade in steps
     setTimeout(() => {
       Animated.timing(stepsOpacity, {
         toValue: 1,
-        duration: 800,
+        duration: 320,
         useNativeDriver: true,
       }).start();
-    }, 3500);
+    }, 1400);
 
     // 4. Finally, fade in last step
     setTimeout(() => {
       Animated.timing(lastStepOpacity, {
         toValue: 1,
-        duration: 800,
+        duration: 320,
         useNativeDriver: true,
       }).start();
-    }, 5500);
+    }, 2200);
 
     // 5. Fade in continue button 0.5s after last step
     setTimeout(() => {
       Animated.timing(continueButtonOpacity, {
         toValue: 1,
-        duration: 800,
+        duration: 320,
         useNativeDriver: true,
       }).start();
-    }, 7000); // 6500 + 500ms
+    }, 2800); // 2200 + 600ms
   }, []);
 
   const titleTranslateY = titlePosition.interpolate({

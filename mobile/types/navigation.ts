@@ -1,7 +1,7 @@
 export type RootStackParamList = {
   Login: undefined;
   Allergen: undefined;
-  Home: undefined;
+  Home: { photoUri?: string } | undefined;
   Menu: { restaurantId: string; restaurantName: string };
   Profile: undefined;
   InstructionPage: undefined;
