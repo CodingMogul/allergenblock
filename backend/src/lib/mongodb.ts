@@ -1,7 +1,10 @@
 // lib/mongodb.ts
 import { MongoClient } from 'mongodb';
 
-const uri = process.env.MONGODB_URI!;
+const uri = process.env.MONGODB_URI;
+if (!uri) {
+  throw new Error('MongoDB connection string is missing! Check your environment variables.');
+}
 const options = {};
 
 let client: MongoClient;

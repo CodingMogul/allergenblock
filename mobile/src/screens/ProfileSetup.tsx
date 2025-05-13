@@ -12,9 +12,8 @@ import {
 import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types/navigation';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUserProfile } from '../context/UserProfileContext';
 import { Feather } from '@expo/vector-icons';
-import { BASE_URL } from '../../config';
 
 const ALLERGENS = [
   { id: 'dairy', name: 'Dairy', emoji: '🥛' },
@@ -32,28 +31,21 @@ export default function ProfileSetup() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'ProfileSetup'>>();
   const canGoBack = route.params?.canGoBack;
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [selectedAllergens, setSelectedAllergens] = useState<string[]>([]);
+  const { profile, updateProfile } = useUserProfile();
+  const [firstName, setFirstName] = useState(profile.firstName || '');
+  const [lastName, setLastName] = useState(profile.lastName || '');
+  const [selectedAllergens, setSelectedAllergens] = useState<string[]>(profile.allergens || []);
   const [isLoading, setIsLoading] = useState(false);
   const [firstNameError, setFirstNameError] = useState('');
   const [lastNameError, setLastNameError] = useState('');
   const [showSaved, setShowSaved] = useState(false);
 
-  // Load profile data when screen is focused
   useFocusEffect(
     useCallback(() => {
-      const loadProfile = async () => {
-        const profile = await AsyncStorage.getItem('userProfile');
-        if (profile) {
-          const { firstName, lastName, allergens } = JSON.parse(profile);
-          setFirstName(firstName || '');
-          setLastName(lastName || '');
-          setSelectedAllergens(allergens || []);
-        }
-      };
-      loadProfile();
-    }, [])
+      setFirstName(profile.firstName || '');
+      setLastName(profile.lastName || '');
+      setSelectedAllergens(profile.allergens || []);
+    }, [profile])
   );
 
   const toggleAllergen = (allergenId: string) => {
@@ -111,7 +103,7 @@ export default function ProfileSetup() {
         lastName: lastName.trim(),
         allergens: selectedAllergens
       };
-      await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
+      await updateProfile(userProfile);
       if (canGoBack) {
         setShowSaved(true);
         setTimeout(() => setShowSaved(false), 3000);

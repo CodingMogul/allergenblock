@@ -33,17 +33,13 @@ import { Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
 import { RootStackParamList } from './types/navigation';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getRestaurants } from '../storage/restaurantStorage';
+import { Restaurant, MenuItem } from '../restaurantData';
+import { useUserProfile } from '../context/UserProfileContext';
 
 const { width } = Dimensions.get('window');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-interface MenuItem {
-  id: string;
-  name: string;
-  allergens: string[];
-}
 
 type AllergenId = string;
 
@@ -59,6 +55,24 @@ const ALLERGENS: { id: AllergenId; name: string; emoji: string }[] = [
   { id: 'sesame', name: 'Sesame', emoji: '✨' },
 ];
 
+function normalizeMenuItems(rawMenuItems: any[]): MenuItem[] {
+  return rawMenuItems.map((item, idx) => ({
+    id: item.id || idx.toString(),
+    name: item.name,
+    allergens: item.allergens || [],
+    certainty: item.certainty,
+  }));
+}
+
+function getDisplayName(restaurant: any) {
+  return (
+    restaurant.verifiedName ||
+    restaurant.restaurantName ||
+    restaurant.name ||
+    'Unnamed Restaurant'
+  );
+}
+
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
@@ -72,14 +86,14 @@ export default function MenuScreen() {
       displayName?: string;
     };
   };
+  const { profile, updateProfile } = useUserProfile();
 
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [selectedAllergens, setSelectedAllergens] = useState<AllergenId[]>([]);
+  const [selectedAllergens, setSelectedAllergens] = useState<string[]>(profile.allergens || []);
   const [saving, setSaving] = useState(false);
-  const [profileAllergens, setProfileAllergens] = useState<AllergenId[]>([]);
   const [latestRestaurant, setLatestRestaurant] = useState<typeof restaurant>(restaurant);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editNameInput, setEditNameInput] = useState('');
@@ -90,11 +104,15 @@ export default function MenuScreen() {
       let isActive = true;
       const fetchRestaurant = async () => {
         try {
-          const res = await fetch(`${BASE_URL}/api/restaurants`);
-          if (!res.ok) throw new Error('Failed to fetch restaurants');
-          const data = await res.json();
-          const found = data.find((r: any) => r.id === restaurant.id);
-          if (found && isActive) setLatestRestaurant(found);
+          const allRestaurants: Restaurant[] = await getRestaurants();
+          const found = allRestaurants.find((r: any) => r.id === restaurant.id);
+          if (found && isActive) setLatestRestaurant({
+            id: found.id,
+            name: found.restaurantName ?? '',
+            apimatch: found.apimatch,
+            brandLogo: found.brandLogo,
+            googlePlace: found.googlePlace,
+          });
         } catch (e) {
           if (isActive) setLatestRestaurant(restaurant);
         }
@@ -109,22 +127,10 @@ export default function MenuScreen() {
       let isActive = true;
       const fetchMenu = async () => {
         try {
-          const res = await fetch(`${BASE_URL}/api/menuDetails/${restaurant.id}`);
-          if (!res.ok) {
-            throw new Error(`HTTP error! status: ${res.status}`);
-          }
-          const text = await res.text();
-          try {
-            const data = JSON.parse(text);
-            const mapped = data.menuItems.map((item: any, index: number) => ({
-              id: index.toString(),
-              name: item.name,
-              allergens: item.allergens || [],
-            }));
-            if (isActive) setMenu(mapped);
-          } catch (parseError) {
-            throw parseError;
-          }
+          const allRestaurants: Restaurant[] = await getRestaurants();
+          const found = allRestaurants.find((r: any) => r.id === restaurant.id);
+          const menuItems = found && found.menuItems ? normalizeMenuItems(found.menuItems) : [];
+          if (isActive) setMenu(menuItems);
         } catch (error) {
           if (isActive) setMenu([]);
         } finally {
@@ -136,61 +142,22 @@ export default function MenuScreen() {
     }, [restaurant.id])
   );
 
-  // Load profile allergens from AsyncStorage on mount
   useEffect(() => {
-    const loadProfileAllergens = async () => {
-      try {
-        const profile = await AsyncStorage.getItem('userProfile');
-        if (profile) {
-          const { allergens } = JSON.parse(profile);
-          setProfileAllergens(allergens || []);
-        } else {
-          setProfileAllergens([]);
-        }
-      } catch {
-        setProfileAllergens([]);
-      }
-    };
-    loadProfileAllergens();
-  }, []);
+    setSelectedAllergens(profile.allergens || []);
+  }, [profile.allergens]);
 
-  // Load allergens from AsyncStorage when modal opens
-  const openAllergenModal = async () => {
-    try {
-      const profile = await AsyncStorage.getItem('userProfile');
-      if (profile) {
-        const { allergens } = JSON.parse(profile);
-        setSelectedAllergens(allergens || []);
-      } else {
-        setSelectedAllergens([]);
-      }
-    } catch {
-      setSelectedAllergens([]);
-    }
+  const openAllergenModal = () => {
+    setSelectedAllergens(profile.allergens || []);
     setModalVisible(true);
   };
 
   const saveAllergens = async () => {
-    setSaving(true);
-    try {
-      const profile = await AsyncStorage.getItem('userProfile');
-      let userProfile: { firstName: string; lastName: string; allergens: string[] } = { firstName: '', lastName: '', allergens: [] };
-      if (profile) {
-        userProfile = JSON.parse(profile);
-      }
-      userProfile.allergens = selectedAllergens;
-      await AsyncStorage.setItem('userProfile', JSON.stringify(userProfile));
-      setProfileAllergens(selectedAllergens); // update profileAllergens state
-      setModalVisible(false);
-    } catch (e) {
-      setModalVisible(false);
-    } finally {
-      setSaving(false);
-    }
+    await updateProfile({ allergens: selectedAllergens });
+    setModalVisible(false);
   };
 
-  // Use profileAllergens for allergen matching
-  const userAllergies = profileAllergens.length > 0 ? profileAllergens : ['peanuts', 'gluten', 'dairy'];
+  // Use profile.allergens for allergen matching
+  const userAllergies = profile.allergens.length > 0 ? profile.allergens : ['peanuts', 'gluten', 'dairy'];
 
   // Helper: Google match logic (reuse from HomeScreen)
   async function getGoogleMatchedNameAndLocation(inputName: string, location: { lat: number; lng: number }) {
@@ -345,9 +312,9 @@ export default function MenuScreen() {
                   ]}
                   onPress={() => {
                     setSelectedAllergens((current) =>
-                      (current as AllergenId[]).includes(allergen.id)
-                        ? (current as AllergenId[]).filter(id => id !== allergen.id)
-                        : [...(current as AllergenId[]), allergen.id]
+                      (current as string[]).includes(allergen.id)
+                        ? (current as string[]).filter(id => id !== allergen.id)
+                        : [...(current as string[]), allergen.id]
                     );
                   }}
                 >
@@ -377,13 +344,7 @@ export default function MenuScreen() {
           style={{ width: '100%' }}
         >
           <Text style={styles.header}>
-            {
-              latestRestaurant.apimatch === 'google' && latestRestaurant.googlePlace && latestRestaurant.googlePlace.name
-                ? `${latestRestaurant.googlePlace.name} Menu`
-                : latestRestaurant.displayName
-                  ? `${latestRestaurant.displayName} Menu`
-                  : `${latestRestaurant.name} Menu`
-            }
+            {`${getDisplayName(latestRestaurant)} Menu`}
           </Text>
         </Pressable>
       </View>
@@ -429,7 +390,7 @@ export default function MenuScreen() {
         <FlatList
           data={menu}
           renderItem={({ item, index }) => <Card item={item} index={index} />}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item, index) => item.id ? String(item.id) : String(index)}
           contentContainerStyle={styles.scrollView}
         />
       )}

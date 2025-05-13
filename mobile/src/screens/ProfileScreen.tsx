@@ -1,34 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types/navigation';
-
-type UserProfile = {
-  firstName: string;
-  lastName: string;
-  allergens: string[];
-};
+import { useUserProfile } from '../context/UserProfileContext';
 
 export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
-    try {
-      const profileData = await AsyncStorage.getItem('userProfile');
-      if (profileData) {
-        setProfile(JSON.parse(profileData));
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  };
+  const { profile } = useUserProfile();
 
   const handleEditProfile = () => {
     navigation.navigate('ProfileSetup');

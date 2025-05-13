@@ -13,6 +13,7 @@ import {
   Button,
   Alert,
   RefreshControl,
+  InteractionManager,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -33,6 +34,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { Animated, Easing } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { deleteRestaurant, editRestaurant, getRestaurants, addRestaurant } from '../storage/restaurantStorage';
+import { fetchGooglePlace } from '../api/googleApi';
+import { fetchLogoDevUrl } from '../api/logoDevApi';
+import uuid from 'react-native-uuid';
+import { Restaurant, MenuItem } from '../restaurantData';
 
 interface Restaurant {
   id: string;
@@ -114,6 +120,47 @@ async function getGoogleMatchedNameAndLocation(inputName: string, location: { la
   return { name: inputName, location };
 }
 
+function normalizeGeminiMenuItems(rawMenuItems: any[]): MenuItem[] {
+  return rawMenuItems.map((item, idx) => ({
+    id: item.id || idx.toString(),
+    name: item.name,
+    allergens: item.allergens || [],
+    certainty: item.certainty,
+  }));
+}
+
+function createRestaurantFromGemini(data: any, restaurantName: string, location: { lat: number, lng: number }): Restaurant {
+  return {
+    id: uuid.v4(),
+    restaurantName: data.restaurantName || restaurantName,
+    location: {
+      type: 'Point',
+      coordinates: [
+        (data.location && data.location.lng) || location.lng,
+        (data.location && data.location.lat) || location.lat,
+      ],
+    },
+    menuItems: normalizeGeminiMenuItems(data.menuItems || []),
+    source: data.source || 'camera',
+    apimatch: data.apimatch,
+    googlePlace: data.googlePlace,
+    brandLogo: data.brandLogo,
+    updatedAt: Date.now(),
+    createdAt: Date.now(),
+    hidden: false,
+  };
+}
+
+// Helper to get the best display name for a restaurant
+function getDisplayName(restaurant: any) {
+  return (
+    restaurant.verifiedName ||
+    restaurant.restaurantName ||
+    restaurant.name ||
+    'Unnamed Restaurant'
+  );
+}
+
 const HomeScreen = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
@@ -161,35 +208,21 @@ const HomeScreen = () => {
 
   // Fetch restaurants function (moved outside useEffect for reuse)
   const fetchRestaurants = async () => {
+    setNetworkError(false);
+    setLoading(true);
     let timeout: NodeJS.Timeout | null = null;
+    timeout = setTimeout(() => {
+      setNetworkError(true);
+      setLoading(false);
+    }, 4000);
     try {
+      const data = await getRestaurants();
+      setRestaurants(data);
       setNetworkError(false);
-      setLoading(true);
-      // Start 4-second timeout for network error
-      timeout = setTimeout(() => {
-        setNetworkError(true);
-        setLoading(false);
-      }, 4000);
-      const res = await fetch(`${BASE_URL}/api/restaurants`);
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        setRestaurants(data);
-        setNetworkError(false);
-        if (timeout) clearTimeout(timeout);
-        setLoading(false);
-        setRefreshing(false);
-        return data;
-      } catch (parseError) {
-        setNetworkError(true);
-        if (timeout) clearTimeout(timeout);
-        setLoading(false);
-        setRefreshing(false);
-        throw parseError;
-      }
+      if (timeout) clearTimeout(timeout);
+      setLoading(false);
+      setRefreshing(false);
+      return data;
     } catch (error) {
       setNetworkError(true);
       if (timeout) clearTimeout(timeout);
@@ -284,7 +317,7 @@ const HomeScreen = () => {
 
   const uploadMenuImage = async (base64: string, restaurantName: string, location: { lat: number; lng: number }) => {
     try {
-      console.log('Uploading image to backend...');
+      // Call backend for Gemini processing
       const response = await fetch(`${BASE_URL}/api/upload-menu`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -295,11 +328,82 @@ const HomeScreen = () => {
         }),
       });
       const data = await response.json();
-      if (data.success && data.gemini && data.mongo) {
-        console.log('Image processed by Gemini and uploaded to MongoDB!');
+      // Robustly extract menuItems and other fields
+      let menuItems = [];
+      if (data.menuItems) {
+        menuItems = data.menuItems;
+      } else if (data.data && data.data.menuItems) {
+        menuItems = data.data.menuItems;
+      } else if (data.gemini && data.gemini.menuItems) {
+        menuItems = data.gemini.menuItems;
+      }
+      if (menuItems && menuItems.length > 0) {
+        // 1. Google API match for name/location
+        let verifiedName = restaurantName;
+        let verifiedLocation = location;
+        let googlePlace = undefined;
+        let apimatch = undefined;
+        const googleResult = await fetchGooglePlace(restaurantName, location);
+        if (googleResult && googleResult.name && googleResult.location) {
+          // Check if within 100 meters
+          const dist = getDistanceMeters(
+            location.lat,
+            location.lng,
+            googleResult.location.lat,
+            googleResult.location.lng
+          );
+          if (dist < 100) {
+            verifiedName = googleResult.name;
+            verifiedLocation = googleResult.location;
+            googlePlace = googleResult;
+            apimatch = 'google';
+          }
+        }
+        // 2. logo.dev for logo
+        const brandLogo = await fetchLogoDevUrl(verifiedName);
+        // 3. Save to AsyncStorage with all info
+        const newRestaurant = {
+          id: uuid.v4(),
+          restaurantName,
+          verifiedName,
+          location: {
+            type: 'Point',
+            coordinates: [verifiedLocation.lng, verifiedLocation.lat],
+          },
+          verifiedLocation,
+          menuItems: normalizeGeminiMenuItems(menuItems),
+          source: data.source || 'camera',
+          apimatch,
+          googlePlace,
+          brandLogo,
+          updatedAt: Date.now(),
+          createdAt: Date.now(),
+          hidden: false,
+        };
+        await addRestaurant(newRestaurant);
+        setShowLoadingOverlay(false);
+        setShowSuccessOverlay(true);
+        setTimeout(() => {
+          setShowSuccessOverlay(false);
+          InteractionManager.runAfterInteractions(() => {
+            fetchRestaurants().then((list) => {
+              const newCard = list.find(r => r.id === newRestaurant.id);
+              if (newCard) {
+                setNewlyAddedRestaurantId(newCard.id);
+                Animated.sequence([
+                  Animated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+                  Animated.delay(1000),
+                  Animated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
+                ]).start(() => setNewlyAddedRestaurantId(null));
+              }
+            });
+          });
+        }, 900);
       } else {
         console.log('Processing or upload failed:', data);
-        Alert.alert('Error', 'Processing or upload failed.');
+        setShowLoadingOverlay(false);
+        setShowSuccessOverlay(false);
+        setShowNoMenuModal(true);
       }
     } catch (err: any) {
       console.log('Error uploading image:', err);
@@ -352,7 +456,6 @@ const HomeScreen = () => {
       const googleResult = await getGoogleMatchedNameAndLocation(restaurantNameInput.trim(), pendingLocation);
       let useName = googleResult.name;
       let useLocation = pendingLocation;
-      // If the Google location is within 100 meters of the user's location, use it
       if (googleResult.location) {
         const dist = getDistanceMeters(
           pendingLocation.lat,
@@ -360,63 +463,19 @@ const HomeScreen = () => {
           googleResult.location.lat,
           googleResult.location.lng
         );
-        // Always use Google location if matched for accuracy
         useLocation = googleResult.location;
       }
       // Upload and handle response
-      const response = await fetch(`${BASE_URL}/api/upload-menu`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: pendingImageBase64,
-          restaurantName: useName,
-          location: useLocation,
-        }),
-      });
-      const data = await response.json();
+      await uploadMenuImage(pendingImageBase64, useName, useLocation);
       setPendingImageBase64(null);
       setPendingImageUri(null);
       setPendingLocation(null);
       setRestaurantNameInput('');
-      if (data.success && data.gemini && data.mongo) {
-        // Success: show overlays as before
-        const newList = await fetchRestaurants();
-        let newRestaurant = newList.find((r: any) => r.name?.toLowerCase() === useName.toLowerCase());
-        if (newRestaurant && useLocation) {
-          const closeMatch = newList.find((r: any) =>
-            r.name?.toLowerCase() === useName.toLowerCase() &&
-            r.latitude !== undefined && r.longitude !== undefined &&
-            getDistanceMeters(r.latitude, r.longitude, useLocation.lat, useLocation.lng) < 100
-          );
-          if (closeMatch) newRestaurant = closeMatch;
-        }
-        setTimeout(() => {
-          setShowLoadingOverlay(false);
-          setShowSuccessOverlay(true);
-          setTimeout(() => {
-            setShowSuccessOverlay(false);
-            if (newRestaurant) {
-              const matchStatus = newRestaurant.apimatch === 'google' ? 'Google API matched!' : 'No Google API match.';
-              console.log(`[Card] ${newRestaurant.name} apimatch: ${newRestaurant.apimatch} — ${matchStatus}`);
-              setNewlyAddedRestaurantId(newRestaurant.id);
-              Animated.sequence([
-                Animated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
-                Animated.delay(1000),
-                Animated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
-              ]).start(() => setNewlyAddedRestaurantId(null));
-            }
-          }, 1000);
-        }, 1800);
-      } else if (data.reason === 'no_menu') {
-        setShowLoadingOverlay(false);
+      setShowLoadingOverlay(false);
+      setShowSuccessOverlay(true);
+      setTimeout(() => {
         setShowSuccessOverlay(false);
-        setShowNoMenuModal(true);
-        return;
-      } else {
-        setShowLoadingOverlay(false);
-        setShowSuccessOverlay(false);
-        Alert.alert('Error', 'Processing or upload failed.');
-      }
+      }, 1800);
     }
   };
 
@@ -451,22 +510,10 @@ const HomeScreen = () => {
     if (!restaurantToDelete) return;
     setDeleting(true);
     try {
-      // Log the ID for debugging
-      console.log('Deleting restaurant with id:', restaurantToDelete.id);
-      const response = await fetch(`${BASE_URL}/api/restaurants`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: restaurantToDelete.id, hidden: true }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        // Always refresh from backend after delete
-        await fetchRestaurants();
-      } else {
-        Alert.alert('Error', data.error || 'Failed to hide restaurant.');
-      }
+      await deleteRestaurant(restaurantToDelete.id);
+      await fetchRestaurants();
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to hide restaurant.');
+      Alert.alert('Error', e.message || 'Failed to delete restaurant.');
     } finally {
       setDeleting(false);
       setDeleteModalVisible(false);
@@ -580,7 +627,7 @@ const HomeScreen = () => {
     const animatedBg = isNew
       ? cardAnim.interpolate({
           inputRange: [0, 1],
-          outputRange: isCustom ? ['#fff', '#e5e5e5'] : ['#fff', '#22c55e'],
+          outputRange: isCustom ? ['#e5e5e5', '#fff'] : ['#22c55e', '#fff'],
         })
       : pressed
         ? '#e5e5e5'
@@ -623,7 +670,7 @@ const HomeScreen = () => {
                 styles.name,
                 { color: textColor, fontStyle: isCustom ? 'italic' : 'normal', textAlign: 'left', alignSelf: 'flex-start' }
               ]}>
-                {item.displayName || item.name}
+                {getDisplayName(item)}
               </Animated.Text>
               {locationFilter && distance !== null && (
                 <Text style={[styles.distanceText, { textAlign: 'left', alignSelf: 'flex-start' }]}> 
@@ -702,28 +749,15 @@ const HomeScreen = () => {
     if (!editingRestaurant || !editNameInput.trim()) return;
     setEditSaving(true);
     let newName = editNameInput.trim();
-    let newLocation = null;
-    // Use Google match logic
-    if (editingRestaurant.latitude && editingRestaurant.longitude) {
-      const googleResult = await getGoogleMatchedNameAndLocation(newName, { lat: editingRestaurant.latitude, lng: editingRestaurant.longitude });
-      newName = googleResult.name;
-      newLocation = googleResult.location;
-    }
     try {
-      const res = await fetch(`${BASE_URL}/api/restaurants`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingRestaurant.id, newName, newLocation }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setEditModalVisible(false);
-        setEditingRestaurant(null);
-        setEditNameInput('');
-        await fetchRestaurants();
-      } else {
-        Alert.alert('Error', data.error || 'Failed to update restaurant name.');
-      }
+      await editRestaurant(
+        editingRestaurant.id,
+        newName
+      );
+      setEditModalVisible(false);
+      setEditingRestaurant(null);
+      setEditNameInput('');
+      await fetchRestaurants();
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to update restaurant name.');
     } finally {
