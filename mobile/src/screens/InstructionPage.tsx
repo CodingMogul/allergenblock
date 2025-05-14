@@ -1,11 +1,12 @@
 import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Animated, Dimensions, TouchableOpacity } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types/navigation';
 
 export default function InstructionPage() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute();
   const titlePosition = useRef(new Animated.Value(0)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
   const stepsOpacity = useRef(new Animated.Value(0)).current;
@@ -16,7 +17,11 @@ export default function InstructionPage() {
   const centerPosition = (windowHeight / 2) - 250; // Increased from 150 to 250 to move it higher
 
   const handleContinue = () => {
-    navigation.navigate('ProfileSetup');
+    if ((route as any).params?.fromHelp) {
+      navigation.navigate('Home');
+    } else {
+      navigation.navigate('ProfileSetup');
+    }
   };
 
   useEffect(() => {

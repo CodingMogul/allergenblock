@@ -5,8 +5,12 @@
  * @returns number between 0 (no similarity) and 1 (exact match)
  */
 export function calculateStringSimilarity(str1: string, str2: string): number {
-    // Preprocess: lowercase, remove spaces, apostrophes, and punctuation
-    const preprocess = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Preprocess: lowercase, remove all non-alphanumeric, normalize whitespace
+    const preprocess = (s: string) => s
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .replace(/\s+/g, '')
+      .trim();
     const s1 = preprocess(str1);
     const s2 = preprocess(str2);
   

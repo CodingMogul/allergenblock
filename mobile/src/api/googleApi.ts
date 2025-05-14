@@ -10,9 +10,7 @@ export async function fetchGooglePlace(name: string, location: { lat: number; ln
     const res = await fetch(`${BASE_URL}/api/maps?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
-      if (data.apimatch === 'google' && data.googlePlace && data.googlePlace.name && data.googlePlace.location) {
-        return data.googlePlace;
-      }
+      return data;
     }
   } catch (e) {}
   return null;

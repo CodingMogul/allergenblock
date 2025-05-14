@@ -30,31 +30,98 @@ export async function deleteRestaurant(id: string) {
 export async function editRestaurant(
   id: string,
   newName: string,
+  verifiedName?: string,
+  verifiedLocation?: { lat: number; lng: number },
+  apimatch?: string,
+  googlePlace?: any,
+  brandLogo?: string,
+  locationOverride?: { lat: number; lng: number },
 ) {
   const restaurants = await getRestaurants();
   const idx = restaurants.findIndex(r => r.id === id);
   if (idx === -1) return;
   const restaurant = restaurants[idx];
-  // Call Google API for new place info
-  const googlePlace = await fetchGooglePlace(newName, {
-    lat: restaurant.location.coordinates[1],
-    lng: restaurant.location.coordinates[0],
-  });
-  // Call logo.dev API for new logo
-  const brandLogo = await fetchLogoDevUrl(newName);
-  // Update restaurant
+  // Use passed-in values if provided, otherwise fallback to old logic
+  let finalVerifiedName = verifiedName;
+  let finalApimatch = apimatch;
+  let finalGooglePlace = googlePlace;
+  let finalBrandLogo: string = brandLogo || '';
+  let finalLocation = restaurant.location;
+  // Only require Google match fields, not brandLogo
+  if (!finalVerifiedName || !finalApimatch || !finalGooglePlace || !locationOverride) {
+    // Normalize name for Google API
+    const normalizedNewName = newName.trim();
+    // Fallback to Google API if not all provided
+    const googlePlaceResult = await fetchGooglePlace(normalizedNewName, locationOverride || {
+      lat: restaurant.location.coordinates[1],
+      lng: restaurant.location.coordinates[0],
+    });
+    if (googlePlaceResult && googlePlaceResult.name) {
+      finalVerifiedName = googlePlaceResult.name;
+      finalApimatch = 'google';
+      finalGooglePlace = googlePlaceResult;
+      finalBrandLogo = await fetchLogoDevUrl(googlePlaceResult?.name || newName) || '';
+      // Always update location and verifiedLocation to Google-verified location
+      if (googlePlaceResult.location) {
+        finalLocation = {
+          type: 'Point',
+          coordinates: [googlePlaceResult.location.lng, googlePlaceResult.location.lat],
+        };
+        // Also update verifiedLocation field on the restaurant object
+        restaurants[idx].verifiedLocation = {
+          lat: googlePlaceResult.location.lat,
+          lng: googlePlaceResult.location.lng,
+        };
+      }
+    } else {
+      finalApimatch = 'none';
+      // If saving as custom, set location to user's current location (locationOverride) if provided
+      if (locationOverride) {
+        finalLocation = {
+          type: 'Point',
+          coordinates: [locationOverride.lng, locationOverride.lat],
+        };
+        // Optionally update verifiedLocation as well
+        restaurants[idx].verifiedLocation = {
+          lat: locationOverride.lat,
+          lng: locationOverride.lng,
+        };
+      }
+      console.warn('[Edit Debug] WARNING: Google API returned no match during edit fallback logic. Saving as custom.');
+    }
+  } else {
+    finalLocation = {
+      type: 'Point',
+      coordinates: [verifiedLocation!.lng, verifiedLocation!.lat],
+    };
+  }
   restaurants[idx] = {
     ...restaurant,
     restaurantName: newName,
-    googlePlace,
-    brandLogo,
-    // Optionally update location if googlePlace returns new location
-    location: googlePlace && googlePlace.location
-      ? {
-          type: 'Point',
-          coordinates: [googlePlace.location.lng, googlePlace.location.lat],
-        }
-      : restaurant.location,
+    verifiedName: finalVerifiedName,
+    apimatch: finalApimatch,
+    googlePlace: finalGooglePlace,
+    brandLogo: finalBrandLogo,
+    location: finalLocation,
   };
   await saveRestaurants(restaurants);
+  // Log when a restaurant goes from google match to custom
+  if (restaurant.apimatch === 'google' && finalApimatch !== 'google') {
+    console.log('[Debug] Restaurant changed from Google match to custom:', {
+      id,
+      oldName: restaurant.verifiedName || restaurant.restaurantName,
+      newName,
+      oldApimatch: restaurant.apimatch,
+      newApimatch: finalApimatch,
+    });
+  }
+  // Log when a restaurant is verified by Google by name and location
+  if (finalApimatch === 'google' && finalGooglePlace) {
+    console.log('[Debug] Restaurant is Google verified by name and location:', {
+      id,
+      name: finalVerifiedName,
+      location: finalLocation,
+      googlePlace: finalGooglePlace,
+    });
+  }
 } 

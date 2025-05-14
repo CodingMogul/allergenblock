@@ -167,4 +167,28 @@ export async function getRestaurantInfo(
     console.error('Error retrieving restaurant info:', error);
     return null;
   }
+}
+
+// Google-only match for restaurant name/location
+export async function getGoogleOnlyMatch(
+  restaurantName: string,
+  location: { lat: number; lng: number }
+) {
+  // Only use Google Places API for matching
+  const googleMatch = await checkGoogleMapsRestaurant(restaurantName, location);
+  if (googleMatch.found && googleMatch.googlePlace) {
+    return {
+      restaurantName: googleMatch.googlePlace.name,
+      location: googleMatch.googlePlace.location,
+      apimatch: 'google',
+      googlePlace: googleMatch.googlePlace,
+    };
+  }
+  // No match found
+  return {
+    restaurantName,
+    location,
+    apimatch: 'none',
+    googlePlace: null,
+  };
 } 

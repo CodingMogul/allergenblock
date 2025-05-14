@@ -38,16 +38,8 @@ import { deleteRestaurant, editRestaurant, getRestaurants, addRestaurant } from 
 import { fetchGooglePlace } from '../api/googleApi';
 import { fetchLogoDevUrl } from '../api/logoDevApi';
 import uuid from 'react-native-uuid';
-import { Restaurant, MenuItem } from '../restaurantData';
-
-interface Restaurant {
-  id: string;
-  name: string;
-  displayName?: string;
-  latitude?: number;
-  longitude?: number;
-  brandLogo?: string;
-}
+import type { MenuItem, Restaurant } from '../restaurantData';
+import { Accelerometer } from 'expo-sensors';
 
 type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
 
@@ -56,6 +48,7 @@ type RootStackParamList = {
   Menu: { restaurant: { id: string; name: string; apimatch?: string; brandLogo?: string } };
   Camera: undefined;
   ProfileSetup: { canGoBack?: boolean };
+  InstructionPage: { fromHelp?: boolean };
 };
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -134,7 +127,7 @@ function createRestaurantFromGemini(data: any, restaurantName: string, location:
     id: uuid.v4(),
     restaurantName: data.restaurantName || restaurantName,
     location: {
-      type: 'Point',
+      type: 'Point' as const,
       coordinates: [
         (data.location && data.location.lng) || location.lng,
         (data.location && data.location.lat) || location.lat,
@@ -203,6 +196,13 @@ const HomeScreen = () => {
   const [editSaving, setEditSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [networkError, setNetworkError] = useState(false);
+  // Add state for delete confirmation modal
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [lastDeletedRestaurant, setLastDeletedRestaurant] = useState<Restaurant | null>(null);
+  const [undoVisible, setUndoVisible] = useState(false);
+  const accelerometerSubscription = useRef<any>(null);
+  const lastShake = useRef<number>(0);
+  const [cautionModalVisible, setCautionModalVisible] = useState(false);
 
   const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -264,7 +264,7 @@ const HomeScreen = () => {
     navigation.navigate('Menu', {
       restaurant: {
         id: restaurant.id,
-        name: restaurant.name,
+        name: restaurant.restaurantName,
         apimatch: (restaurant as any).apimatch,
         brandLogo: (restaurant as any).brandLogo,
       },
@@ -280,7 +280,7 @@ const HomeScreen = () => {
       const hiddenRestaurants = restaurants.filter(r => (r as any).hidden);
       let bestScore = -1;
       hiddenRestaurants.forEach(r => {
-        const similarity = getSimilarity(r.name, searchText);
+        const similarity = getSimilarity(r.restaurantName, searchText);
         if (similarity > bestScore) {
           bestScore = similarity;
           bestHiddenMatch = { ...r, similarity };
@@ -295,17 +295,19 @@ const HomeScreen = () => {
       list = [...list]
         .map(r => ({
           ...r,
-          similarity: getSimilarity(r.name, searchText)
+          similarity: getSimilarity(r.restaurantName, searchText)
         }))
         .sort((a, b) => b.similarity - a.similarity);
     } else if (locationFilter) {
       // If location filter is active, sort by distance
       list = list
         .map(r => {
-          if (typeof r.latitude === 'number' && typeof r.longitude === 'number') {
+          const lat = r.location?.coordinates?.[1] ?? 0;
+          const lng = r.location?.coordinates?.[0] ?? 0;
+          if (locationFilter) {
             return {
               ...r,
-              distance: getDistance(locationFilter.lat, locationFilter.lng, r.latitude, r.longitude)
+              distance: getDistance(locationFilter.lat, locationFilter.lng, lat, lng)
             };
           }
           return { ...r, distance: Infinity };
@@ -339,48 +341,42 @@ const HomeScreen = () => {
       }
       if (menuItems && menuItems.length > 0) {
         // 1. Google API match for name/location
+        const googleResult = await fetchGooglePlace(restaurantName, location);
         let verifiedName = restaurantName;
         let verifiedLocation = location;
         let googlePlace = undefined;
-        let apimatch = undefined;
-        const googleResult = await fetchGooglePlace(restaurantName, location);
-        if (googleResult && googleResult.name && googleResult.location) {
-          // Check if within 100 meters
-          const dist = getDistanceMeters(
-            location.lat,
-            location.lng,
-            googleResult.location.lat,
-            googleResult.location.lng
-          );
-          if (dist < 100) {
-            verifiedName = googleResult.name;
-            verifiedLocation = googleResult.location;
-            googlePlace = googleResult;
-            apimatch = 'google';
-          }
+        let apimatch = 'none';
+        if (googleResult && googleResult.apimatch === 'google' && googleResult.googlePlace) {
+          verifiedName = googleResult.googlePlace.name;
+          verifiedLocation = googleResult.googlePlace.location;
+          googlePlace = googleResult.googlePlace;
+          apimatch = 'google';
         }
-        // 2. logo.dev for logo
-        const brandLogo = await fetchLogoDevUrl(verifiedName);
+        // 2. logo.dev for logo (always use verifiedName)
+        const brandLogo = await fetchLogoDevUrl(verifiedName, verifiedName);
         // 3. Save to AsyncStorage with all info
         const newRestaurant = {
           id: uuid.v4(),
-          restaurantName,
+          restaurantName: restaurantName,
           verifiedName,
+          displayName: verifiedName,
+          name: verifiedName,
           location: {
-            type: 'Point',
-            coordinates: [verifiedLocation.lng, verifiedLocation.lat],
+            type: 'Point' as const,
+            coordinates: [verifiedLocation.lng ?? 0, verifiedLocation.lat ?? 0] as [number, number],
           },
           verifiedLocation,
           menuItems: normalizeGeminiMenuItems(menuItems),
           source: data.source || 'camera',
           apimatch,
           googlePlace,
-          brandLogo,
+          brandLogo: brandLogo || '',
           updatedAt: Date.now(),
           createdAt: Date.now(),
           hidden: false,
         };
         await addRestaurant(newRestaurant);
+        console.log('Saved restaurant:', newRestaurant);
         setShowLoadingOverlay(false);
         setShowSuccessOverlay(true);
         setTimeout(() => {
@@ -463,7 +459,10 @@ const HomeScreen = () => {
           googleResult.location.lat,
           googleResult.location.lng
         );
-        useLocation = googleResult.location;
+        // Always use Google location if within 3000 miles for testing
+        if (dist < 4828032) {
+          useLocation = googleResult.location;
+        }
       }
       // Upload and handle response
       await uploadMenuImage(pendingImageBase64, useName, useLocation);
@@ -506,10 +505,34 @@ const HomeScreen = () => {
     setDeleteModalVisible(true);
   };
 
-  const handleDeleteRestaurant = async () => {
+  // Shake detection logic
+  useEffect(() => {
+    let lastX = 0, lastY = 0, lastZ = 0;
+    let shakeThreshold = 1.2; // Adjust as needed
+    function handleAccelerometer({ x, y, z }: { x: number, y: number, z: number }) {
+      const now = Date.now();
+      const delta = Math.abs(x - lastX) + Math.abs(y - lastY) + Math.abs(z - lastZ);
+      if (delta > shakeThreshold && now - lastShake.current > 1200 && restaurantToDelete) {
+        lastShake.current = now;
+        setUndoVisible(true);
+      }
+      lastX = x;
+      lastY = y;
+      lastZ = z;
+    }
+    accelerometerSubscription.current = Accelerometer.addListener(handleAccelerometer);
+    Accelerometer.setUpdateInterval(200);
+    return () => {
+      accelerometerSubscription.current && accelerometerSubscription.current.remove();
+    };
+  }, [restaurantToDelete]);
+
+  // Override handleDeleteRestaurant to store last deleted
+  const handleDeleteRestaurantWithUndo = async () => {
     if (!restaurantToDelete) return;
     setDeleting(true);
     try {
+      setLastDeletedRestaurant(restaurantToDelete);
       await deleteRestaurant(restaurantToDelete.id);
       await fetchRestaurants();
     } catch (e: any) {
@@ -521,46 +544,15 @@ const HomeScreen = () => {
     }
   };
 
-  useEffect(() => {
-    if (!searchText.trim()) {
-      setGoogleMatchedName(null);
-      return;
+  // Undo delete handler
+  const handleUndoDelete = async () => {
+    if (lastDeletedRestaurant) {
+      await addRestaurant(lastDeletedRestaurant);
+      await fetchRestaurants();
+      setLastDeletedRestaurant(null);
+      setUndoVisible(false);
     }
-    // Debounce API call
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
-    debounceTimeout.current = setTimeout(async () => {
-      let lat = locationFilter?.lat;
-      let lng = locationFilter?.lng;
-      try {
-        const params = new URLSearchParams({
-          restaurantName: searchText,
-          lat: lat ? String(lat) : '0',
-          lng: lng ? String(lng) : '0',
-        });
-        const res = await fetch(`${BASE_URL}/api/maps?${params.toString()}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.apimatch === 'google' && data.googlePlace && data.googlePlace.name) {
-            if (data.googlePlace.name !== searchText) {
-              setGoogleMatchedName(data.googlePlace.name);
-              setSearchText(data.googlePlace.name);
-            }
-            // Update locationFilter to Google-provided lat/lng if different
-            if (
-              data.googlePlace.location &&
-              (data.googlePlace.location.lat !== locationFilter?.lat || data.googlePlace.location.lng !== locationFilter?.lng)
-            ) {
-              setLocationFilter({
-                lat: data.googlePlace.location.lat,
-                lng: data.googlePlace.location.lng,
-              });
-            }
-          }
-        }
-      } catch (e) {}
-    }, 600);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchText, locationFilter]);
+  };
 
   // Fade-in effect when navigating home after success
   useEffect(() => {
@@ -627,7 +619,7 @@ const HomeScreen = () => {
     const animatedBg = isNew
       ? cardAnim.interpolate({
           inputRange: [0, 1],
-          outputRange: isCustom ? ['#e5e5e5', '#fff'] : ['#22c55e', '#fff'],
+          outputRange: isCustom ? ['#fff', '#e5e5e5'] : ['#fff', '#22c55e'],
         })
       : pressed
         ? '#e5e5e5'
@@ -635,6 +627,8 @@ const HomeScreen = () => {
     const textColor = isNew
       ? cardAnim.interpolate({ inputRange: [0, 1], outputRange: ['#000', isCustom ? '#000' : '#fff'] })
       : '#000';
+    const lat = item.location?.coordinates?.[1] ?? 0;
+    const lng = item.location?.coordinates?.[0] ?? 0;
     return (
       <LongPressGestureHandler
         onHandlerStateChange={({ nativeEvent }) => {
@@ -659,7 +653,7 @@ const HomeScreen = () => {
               { backgroundColor: animatedBg, borderColor: isNew ? (isCustom ? '#888' : '#22c55e') : '#000', flexDirection: 'row', alignItems: 'center' },
             ]}
           >
-            {/* Always reserve space for the logo */}
+            {/* Only show logo for Google-matched cards */}
             {item.apimatch === 'google' && item.brandLogo ? (
               <Image source={{ uri: item.brandLogo }} style={{ width: 28, height: 28, marginRight: 0 }} resizeMode="contain" />
             ) : (
@@ -668,7 +662,7 @@ const HomeScreen = () => {
             <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', marginLeft: 50 }}>
               <Animated.Text style={[
                 styles.name,
-                { color: textColor, fontStyle: isCustom ? 'italic' : 'normal', textAlign: 'left', alignSelf: 'flex-start' }
+                { color: textColor, textAlign: 'left', alignSelf: 'flex-start' }
               ]}>
                 {getDisplayName(item)}
               </Animated.Text>
@@ -740,7 +734,7 @@ const HomeScreen = () => {
   // Edit handler
   const handleEditRestaurant = (restaurant: Restaurant) => {
     setEditingRestaurant(restaurant);
-    setEditNameInput(restaurant.displayName || restaurant.name);
+    setEditNameInput(restaurant.verifiedName || restaurant.restaurantName);
     setEditModalVisible(true);
   };
 
@@ -749,15 +743,66 @@ const HomeScreen = () => {
     if (!editingRestaurant || !editNameInput.trim()) return;
     setEditSaving(true);
     let newName = editNameInput.trim();
+
+    // 1. Always get user's current location for Google API match
+    let location = { lat: 0, lng: 0 };
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Location.getCurrentPositionAsync({});
+        location = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+      }
+    } catch {}
+
+    // 2. Google API match for name/location (same as uploadMenuImage)
+    const googleResult = await fetchGooglePlace(newName, location);
+    let verifiedName = newName;
+    let verifiedLocation = location;
+    let googlePlace = undefined;
+    let apimatch = 'none';
+    if (googleResult && googleResult.apimatch === 'google' && googleResult.googlePlace) {
+      verifiedName = googleResult.googlePlace.name;
+      verifiedLocation = googleResult.googlePlace.location;
+      googlePlace = googleResult.googlePlace;
+      apimatch = 'google';
+    }
+    // 3. logo.dev for logo (always use verifiedName)
+    const brandLogo = await fetchLogoDevUrl(verifiedName, verifiedName);
+
+    // Debug logging before saving
+    console.log('[Edit Debug] googleResult:', googleResult);
+    console.log('[Edit Debug] apimatch:', apimatch, 'verifiedName:', verifiedName, 'verifiedLocation:', verifiedLocation, 'googlePlace:', googlePlace, 'brandLogo:', brandLogo);
+    if (apimatch !== 'google') {
+      console.warn('[Edit Debug] WARNING: apimatch is not google. This edit will be saved as custom.');
+    }
+
     try {
       await editRestaurant(
         editingRestaurant.id,
-        newName
+        newName,
+        verifiedName,
+        verifiedLocation,
+        apimatch,
+        googlePlace,
+        brandLogo || '',
+        verifiedLocation
       );
       setEditModalVisible(false);
       setEditingRestaurant(null);
       setEditNameInput('');
-      await fetchRestaurants();
+      // Debug: log restaurants after fetch
+      const updatedList = await fetchRestaurants();
+      const updatedRestaurant = updatedList.find(r => r.id === editingRestaurant.id);
+      console.log('[Edit] Updated restaurant:', updatedRestaurant);
+      // Add a buffer before animating to ensure state is updated and avoid glitches
+      setTimeout(() => {
+        setNewlyAddedRestaurantId(editingRestaurant.id);
+        Animated.sequence([
+          Animated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+          Animated.delay(1000),
+          Animated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
+        ]).start(() => setNewlyAddedRestaurantId(null));
+      }, 200); // 200ms buffer
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to update restaurant name.');
     } finally {
@@ -776,26 +821,24 @@ const HomeScreen = () => {
     <GestureHandlerRootView style={styles.container}>
       {/* Overlays should be rendered last so they are above all content */}
       {/* Main content */}
-      {/* User name in top left */}
-      {userFirstName ? (
-        <View style={styles.userNameContainer}>
-          <Text style={styles.userNameText}>
-            {userFirstName}{userLastInitial ? ` ${userLastInitial}.` : ''}
-          </Text>
-        </View>
-      ) : null}
-      <TouchableOpacity style={styles.profileButton} onPress={goToProfileSetup} accessibilityLabel="Profile">
+      {/* Profile button in top left */}
+      <TouchableOpacity style={styles.profileButtonLeft} onPress={goToProfileSetup} accessibilityLabel="Profile">
         <Feather name="user" size={30} color="#222" />
       </TouchableOpacity>
       <View style={styles.titleContainer}>
-        <Text style={styles.title}>
-          <Text style={styles.epi}>Epi</Text>
-          <Text style={styles.eats}>Eats</Text>
-        </Text>
+        <TouchableOpacity onPress={() => setCautionModalVisible(true)}>
+          <Text style={styles.title}>
+            <Text style={styles.epi}>Epi</Text>
+            <Text style={styles.eats}>Eats</Text>
+          </Text>
+        </TouchableOpacity>
       </View>
       <View style={styles.searchBarRow}>
         <TouchableOpacity
-          style={[styles.locationButton, locationFilter ? styles.locationButtonActive : null]}
+          style={[
+            styles.locationButton,
+            locationFilter ? styles.locationButtonActive : null
+          ]}
           onPress={async () => {
             if (locationFilter) {
               setLocationFilter(null);
@@ -804,7 +847,11 @@ const HomeScreen = () => {
             }
           }}
         >
-          <Text style={{ fontSize: 24, color: locationFilter ? '#fff' : '#000' }}>📍</Text>
+          <Feather
+            name="map-pin"
+            size={24}
+            color={locationFilter ? '#fff' : '#000'}
+          />
         </TouchableOpacity>
         <TextInput
           placeholder="Search restaurants"
@@ -821,22 +868,20 @@ const HomeScreen = () => {
       >
         {filteredRestaurants.map((item) => {
           let distance: number | null = null;
-          if (
-            locationFilter &&
-            typeof item.latitude === 'number' &&
-            typeof item.longitude === 'number'
-          ) {
+          const lat = item.location?.coordinates?.[1] ?? 0;
+          const lng = item.location?.coordinates?.[0] ?? 0;
+          if (locationFilter) {
             distance = getDistance(
               locationFilter.lat,
               locationFilter.lng,
-              item.latitude,
-              item.longitude
+              lat,
+              lng
             );
           }
           const isNew = newlyAddedRestaurantId === item.id;
           return (
             <RestaurantCard
-              key={item.id}
+              key={item.id + '-' + (item.apimatch || 'custom')}
               item={item}
               isNew={isNew}
               cardAnim={cardAnim}
@@ -851,14 +896,6 @@ const HomeScreen = () => {
           <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text>
         )}
       </ScrollView>
-
-      {/* Caution overlay for network error */}
-      {networkError && !loading && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 90, zIndex: 1000, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.92)' }} pointerEvents="box-none">
-          <Feather name="alert-triangle" size={64} color="#ffb3b3" />
-          <Text style={{ color: '#ff4d4d', fontSize: 18, marginTop: 18, fontWeight: 'bold' }}>Network error. Pull to refresh</Text>
-        </View>
-      )}
 
       <View style={styles.bottomBar}>
         <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
@@ -965,10 +1002,10 @@ const HomeScreen = () => {
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
           <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
             <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>
-              Delete this restaurant?
+              Apply Changes?
             </Text>
             <Text style={{ fontSize: 16, marginBottom: 18, color: '#444', textAlign: 'center' }}>
-              Are you sure you want to delete "{restaurantToDelete?.name}"?
+              What would you like to do with this restaurant?
             </Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
               <TouchableOpacity
@@ -979,7 +1016,10 @@ const HomeScreen = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
-                onPress={handleDeleteRestaurant}
+                onPress={() => {
+                  setDeleteModalVisible(false);
+                  setConfirmDeleteVisible(true);
+                }}
                 disabled={deleting}
               >
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
@@ -992,6 +1032,43 @@ const HomeScreen = () => {
                 }}
               >
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Edit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirm Delete Modal */}
+      <Modal
+        visible={confirmDeleteVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setConfirmDeleteVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>
+              Permanently Delete?
+            </Text>
+            <Text style={{ fontSize: 16, marginBottom: 18, color: '#444', textAlign: 'center' }}>
+              This will permanently delete this restaurant. Are you sure?
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+              <TouchableOpacity
+                style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
+                onPress={() => setConfirmDeleteVisible(false)}
+              >
+                <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
+                onPress={async () => {
+                  setConfirmDeleteVisible(false);
+                  await handleDeleteRestaurantWithUndo();
+                }}
+                disabled={deleting}
+              >
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1013,7 +1090,7 @@ const HomeScreen = () => {
             style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
             onPress={(e) => e.stopPropagation()}
           >
-            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Edit Restaurant Name</Text>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Apply Changes?</Text>
             <TextInput
               style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16 }}
               placeholder="Restaurant Name"
@@ -1022,13 +1099,22 @@ const HomeScreen = () => {
               autoFocus
               editable={!editSaving}
             />
-            <TouchableOpacity
-              style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
-              onPress={handleEditNameSubmit}
-              disabled={editSaving}
-            >
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{editSaving ? 'Saving...' : 'Save'}</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between' }}>
+              <TouchableOpacity
+                style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
+                onPress={() => setEditModalVisible(false)}
+                disabled={editSaving}
+              >
+                <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, flex: 1, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
+                onPress={handleEditNameSubmit}
+                disabled={editSaving}
+              >
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{editSaving ? 'Saving...' : 'Apply'}</Text>
+              </TouchableOpacity>
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1037,6 +1123,69 @@ const HomeScreen = () => {
       {showHomeFadeIn && (
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: homeFadeAnim, zIndex: 9998 }]} pointerEvents="none" />
       )}
+
+      {/* Undo Snackbar/Modal */}
+      {undoVisible && (
+        <Modal
+          visible={undoVisible}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setUndoVisible(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 28, width: '80%', alignItems: 'center' }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Undo Delete?</Text>
+              <Text style={{ fontSize: 16, marginBottom: 24, color: '#444', textAlign: 'center' }}>
+                Do you want to restore the deleted restaurant?
+              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#eee', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
+                  onPress={() => setUndoVisible(false)}
+                >
+                  <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#2563eb', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8, flex: 1, alignItems: 'center', marginLeft: 8 }}
+                  onPress={handleUndoDelete}
+                >
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Undo</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Caution Disclaimer Modal */}
+      <Modal
+        visible={cautionModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setCautionModalVisible(false)}
+      >
+        <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 32, width: '85%', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }}>
+            <Feather name="alert-triangle" size={48} color="#FFD600" style={{ marginBottom: 18 }} />
+            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFD600', marginBottom: 12 }}>Disclaimer</Text>
+            <Text style={{ fontSize: 16, color: '#222', textAlign: 'center', marginBottom: 18 }}>
+              This app is for informational purposes only and does not replace professional medical advice. Always confirm allergen information with restaurant staff or your physician. The creators of this app are not liable for any allergic reactions or health issues.
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#FFD600', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 32, marginTop: 8 }}
+              onPress={() => setCautionModalVisible(false)}
+            >
+              <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 16 }}>Understood!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Help button in the top right */}
+      <TouchableOpacity style={styles.helpButtonRight} onPress={() => navigation.navigate('InstructionPage', { fromHelp: true })} accessibilityLabel="Help">
+        <Feather name="help-circle" size={30} color="#222" />
+      </TouchableOpacity>
     </GestureHandlerRootView>
   );
 };
@@ -1049,7 +1198,7 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 2,
   },
   title: {
     flexDirection: 'row',
@@ -1146,10 +1295,21 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
   },
   locationButtonActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+    backgroundColor: '#DA291C',
+    borderColor: '#DA291C',
   },
-  profileButton: {
+  profileButtonLeft: {
+    position: 'absolute',
+    top: 80,
+    left: 24,
+    zIndex: 11,
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  helpButtonRight: {
     position: 'absolute',
     top: 80,
     right: 24,

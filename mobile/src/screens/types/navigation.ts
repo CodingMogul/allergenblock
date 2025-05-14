@@ -4,7 +4,7 @@ export type RootStackParamList = {
   Home: { photoUri?: string } | undefined;
   Menu: { restaurantId: string; restaurantName: string };
   Profile: undefined;
-  InstructionPage: undefined;
+  InstructionPage: { fromHelp?: boolean } | undefined;
   ProfileSetup: { canGoBack?: boolean } | undefined;
   Welcome: undefined;
   Camera: undefined;

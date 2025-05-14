@@ -36,6 +36,9 @@ import { RootStackParamList } from './types/navigation';
 import { getRestaurants } from '../storage/restaurantStorage';
 import { Restaurant, MenuItem } from '../restaurantData';
 import { useUserProfile } from '../context/UserProfileContext';
+import { fetchGooglePlace } from '../api/googleApi';
+import { fetchLogoDevUrl } from '../api/logoDevApi';
+import { sharedEditRestaurant } from '../utils/editRestaurantShared';
 
 const { width } = Dimensions.get('window');
 
@@ -73,6 +76,19 @@ function getDisplayName(restaurant: any) {
   );
 }
 
+// AnimatedDots for 'Saving'
+function AnimatedDots({ saving }: { saving: boolean }) {
+  const [dotCount, setDotCount] = useState(0);
+  useEffect(() => {
+    if (!saving) return;
+    const interval = setInterval(() => {
+      setDotCount((prev) => (prev + 1) % 4);
+    }, 400);
+    return () => clearInterval(interval);
+  }, [saving]);
+  return <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{'.'.repeat(dotCount)}</Text>;
+}
+
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
@@ -83,7 +99,7 @@ export default function MenuScreen() {
       apimatch?: string;
       brandLogo?: string;
       googlePlace?: { name?: string };
-      displayName?: string;
+      verifiedName?: string;
     };
   };
   const { profile, updateProfile } = useUserProfile();
@@ -112,6 +128,7 @@ export default function MenuScreen() {
             apimatch: found.apimatch,
             brandLogo: found.brandLogo,
             googlePlace: found.googlePlace,
+            verifiedName: found.verifiedName,
           });
         } catch (e) {
           if (isActive) setLatestRestaurant(restaurant);
@@ -159,68 +176,35 @@ export default function MenuScreen() {
   // Use profile.allergens for allergen matching
   const userAllergies = profile.allergens.length > 0 ? profile.allergens : ['peanuts', 'gluten', 'dairy'];
 
-  // Helper: Google match logic (reuse from HomeScreen)
-  async function getGoogleMatchedNameAndLocation(inputName: string, location: { lat: number; lng: number }) {
-    try {
-      const params = new URLSearchParams({
-        restaurantName: inputName,
-        lat: String(location.lat),
-        lng: String(location.lng),
-      });
-      const res = await fetch(`${BASE_URL}/api/maps?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.apimatch === 'google' && data.googlePlace && data.googlePlace.name && data.googlePlace.location) {
-          return {
-            name: data.googlePlace.name,
-            location: data.googlePlace.location,
-          };
-        }
-      }
-    } catch {}
-    return { name: inputName, location };
-  }
-
   // Handler to open edit modal
   const handleEditRestaurantName = () => {
-    setEditNameInput(
-      latestRestaurant.displayName || latestRestaurant.name
-    );
+    setEditNameInput(latestRestaurant.verifiedName || latestRestaurant.name);
     setEditModalVisible(true);
   };
 
   // Handler to submit edit
   const handleEditNameSubmit = async () => {
-    if (!editNameInput.trim()) return;
-    setEditSaving(true);
-    let newName = editNameInput.trim();
-    let newLocation = null;
-    let lat = (latestRestaurant as any).latitude ?? (latestRestaurant as any).googlePlace?.location?.lat;
-    let lng = (latestRestaurant as any).longitude ?? (latestRestaurant as any).googlePlace?.location?.lng;
-    if (lat && lng) {
-      const googleResult = await getGoogleMatchedNameAndLocation(newName, { lat, lng });
-      newName = googleResult.name;
-      newLocation = googleResult.location;
-    }
-    try {
-      const res = await fetch(`${BASE_URL}/api/restaurants`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: latestRestaurant.id, newName, newLocation }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setEditModalVisible(false);
-        setEditNameInput('');
-        // Refetch restaurant info (will auto-update via useFocusEffect)
-      } else {
-        Alert.alert('Error', data.error || 'Failed to update restaurant name.');
-      }
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update restaurant name.');
-    } finally {
-      setEditSaving(false);
-    }
+    await sharedEditRestaurant({
+      id: latestRestaurant.id,
+      oldName: latestRestaurant.verifiedName || latestRestaurant.name,
+      newName: editNameInput,
+      setEditModalVisible,
+      setEditNameInput,
+      setEditSaving,
+      fetchRestaurants: async () => {
+        const allRestaurants: Restaurant[] = await getRestaurants();
+        const found = allRestaurants.find((r: any) => r.id === latestRestaurant.id);
+        if (found) setLatestRestaurant({
+          id: found.id,
+          name: found.restaurantName ?? '',
+          apimatch: found.apimatch,
+          brandLogo: found.brandLogo,
+          googlePlace: found.googlePlace,
+          verifiedName: found.verifiedName,
+        });
+        return allRestaurants;
+      },
+    });
   };
 
   const Card = ({ item, index }: { item: MenuItem; index: number }) => {
@@ -335,7 +319,7 @@ export default function MenuScreen() {
       </Modal>
 
       <View style={{ alignItems: 'center', marginBottom: 8 }}>
-        {latestRestaurant.apimatch === 'google' && latestRestaurant.brandLogo && (
+        {latestRestaurant.brandLogo && (
           <Image source={{ uri: latestRestaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
         )}
         <Pressable
@@ -378,7 +362,9 @@ export default function MenuScreen() {
               onPress={handleEditNameSubmit}
               disabled={editSaving}
             >
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{editSaving ? 'Saving...' : 'Save'}</Text>
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
+                {editSaving ? <>Saving<AnimatedDots saving={editSaving} /></> : 'Save'}
+              </Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>

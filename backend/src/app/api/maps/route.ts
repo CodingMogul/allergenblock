@@ -3,7 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { calculateStringSimilarity } from "@/utils/stringSimilarity";
 import { findBestMatchingMenu } from "@/utils/menuMatcher";
 import { checkGoogleMapsRestaurant, getNearbyRestaurants } from "@/lib/mapsService";
-import { getMenuContext, storeRestaurantWithMenu } from "@/lib/restaurantService";
+import { getMenuContext, storeRestaurantWithMenu, getGoogleOnlyMatch } from "@/lib/restaurantService";
 import { requestCameraCapture, processImageWithGemini, processCameraImage } from "@/lib/cameraUploadData";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
@@ -57,25 +57,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get menu context using the service function
-    const menuContext = await getMenuContext(
-      restaurantName || '',
-      { lat: parseFloat(lat || '0'), lng: parseFloat(lng || '0') },
-      restaurantId || undefined
-    );
+    // Only use Google API for matching
+    const match = await getGoogleOnlyMatch(restaurantName, { lat: parseFloat(lat || '0'), lng: parseFloat(lng || '0') });
 
-    if (!menuContext) {
-      return NextResponse.json(
-        { error: 'Menu not found for this restaurant and location' },
-        { status: 404 }
-      );
-    }
-
-    // Return the menu data with explicit apimatch field
-    return NextResponse.json({
-      ...menuContext,
-      apimatch: menuContext.apimatch || 'none'
-    });
+    return NextResponse.json(match);
   } catch (error) {
     console.error('Error fetching menu:', error);
     return NextResponse.json(
