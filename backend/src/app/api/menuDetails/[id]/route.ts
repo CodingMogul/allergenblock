@@ -1,20 +1,21 @@
-import { NextResponse } from 'next/server';
-import { ObjectId } from 'mongodb';
-import { connectToDatabase } from '@/lib/mongodb';
+import { NextRequest, NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
+import { connectToDatabase } from "@/lib/mongodb";
 
 export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const { db } = await connectToDatabase();
-    const restaurant = await db.collection('restaurants').findOne({
-      _id: new ObjectId(params.id)
+    const restaurant = await db.collection("restaurants").findOne({
+      _id: new ObjectId(id),
     });
 
     if (!restaurant) {
       return NextResponse.json(
-        { error: 'Restaurant not found' },
+        { error: "Restaurant not found" },
         { status: 404 }
       );
     }
@@ -25,16 +26,16 @@ export async function GET(
       menuItems: restaurant.menuItems.map((item: any) => ({
         name: item.name,
         allergens: item.allergens || [],
-        certainty: item.certainty || 1.0
-      }))
+        certainty: item.certainty || 1.0,
+      })),
     };
 
     return NextResponse.json(formattedRestaurant);
   } catch (error) {
-    console.error('Error fetching menu details:', error);
+    console.error("Error fetching menu details:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch menu details' },
+      { error: "Failed to fetch menu details" },
       { status: 500 }
     );
   }
-} 
+}

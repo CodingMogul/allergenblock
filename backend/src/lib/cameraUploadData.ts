@@ -1,13 +1,13 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { readFileSync } from 'fs';
-import path from 'path';
+import { readFileSync } from "fs";
+import path from "path";
 
 // Ensuring API key loads properly and initialization of AI model
-if(!process.env.GEMINI_API_KEY){
-    throw new Error("GEMINI_API_KEY not found in environment variables")
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY not found in environment variables");
 }
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({model:"gemini-1.5-flash"});
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 /**
  * Triggers camera request for menu capture
@@ -17,9 +17,9 @@ const model = genAI.getGenerativeModel({model:"gemini-1.5-flash"});
  */
 export async function requestCameraCapture(
   restaurantName: string,
-  location: {lat: number, lng: number}
+  location: { lat: number; lng: number }
 ): Promise<boolean> {
-  console.log('📸 Requesting menu capture for:', { restaurantName, location });
+  console.log("📸 Requesting menu capture for:", { restaurantName, location });
   // This would be where we would request the camera capture from the camera
   return true;
 }
@@ -34,20 +34,20 @@ export async function processCameraImage(
 ): Promise<{
   restaurantName?: string | null;
   location?: any | null;
-  menuItems: Array<{name: string, allergens: string[]}> | null;
-  source: 'camera' | null;
+  menuItems: Array<{ name: string; allergens: string[] }> | null;
+  source: "camera" | null;
 }> {
-  console.log('🔍 Processing camera image');
-  
+  console.log("🔍 Processing camera image");
+
   try {
     let base64Image: string;
-    
+
     // Handle different types of image data
-    if (typeof imageData === 'string') {
+    if (typeof imageData === "string") {
       // If it's already a base64 string
-      if (imageData.startsWith('data:image')) {
+      if (imageData.startsWith("data:image")) {
         // If it's a data URL, extract the base64 part
-        base64Image = imageData.split(',')[1];
+        base64Image = imageData.split(",")[1];
       } else {
         // Assume it's already a base64 string
         base64Image = imageData;
@@ -56,31 +56,45 @@ export async function processCameraImage(
       // If it's a file path
       base64Image = await convertToBase64(imageData.path);
     } else {
-      throw new Error('Invalid image data format');
+      throw new Error("Invalid image data format");
     }
-    
+
     // Process the image with Gemini AI
-    const menuItems = await processImageWithGemini(base64Image);
-    
-    // If no menu items found, return all-null object for no_menu handling
-    if (!menuItems || menuItems.length === 0) {
+    const result = await processImageWithGemini(base64Image);
+
+    // Check if we got an error response
+    if ("error" in result) {
       return {
         restaurantName: null,
         location: null,
         menuItems: null,
-        source: null
+        source: null,
       };
     }
+
+    // If no menu items found, return all-null object for no_menu handling
+    if (!result || result.length === 0) {
+      return {
+        restaurantName: null,
+        location: null,
+        menuItems: null,
+        source: null,
+      };
+    }
+
     // Return menu items with source information
     return {
-      menuItems,
-      source: 'camera' as const
+      menuItems: result.map((item) => ({
+        name: item.name,
+        allergens: item.allergens,
+      })),
+      source: "camera" as const,
     };
   } catch (error) {
-    console.error('Error processing camera image:', error);
+    console.error("Error processing camera image:", error);
     return {
       menuItems: [],
-      source: 'camera' as const
+      source: "camera" as const,
     };
   }
 }
@@ -94,17 +108,16 @@ export async function convertToBase64(filePath: string): Promise<string> {
   try {
     // TESTESTEST
     // Convert to absolute path if it's not already
-    const absolutePath = path.isAbsolute(filePath) 
-      ? filePath 
+    const absolutePath = path.isAbsolute(filePath)
+      ? filePath
       : path.join(process.cwd(), filePath);
-    
-    console.log('Reading file from:', absolutePath);
+
+    console.log("Reading file from:", absolutePath);
     const fileBuffer = readFileSync(absolutePath);
-    const base64String = fileBuffer.toString('base64');
+    const base64String = fileBuffer.toString("base64");
     return base64String;
-;
   } catch (error) {
-    console.error('Error converting file to base64:', error);
+    console.error("Error converting file to base64:", error);
     throw error;
   }
 }
@@ -112,18 +125,29 @@ export async function convertToBase64(filePath: string): Promise<string> {
 /**
  * Process image with Gemini AI to extract allergen information
  * @param base64Image - Base64 encoded image data
- * @returns Processed menu items with allergens
+ * @returns Processed menu items with allergens or error object
  */
-export async function processImageWithGemini(base64Image: string) {
+export async function processImageWithGemini(
+  base64Image: string | null
+): Promise<
+  | Array<{ name: string; allergens: string[]; certainty: number }>
+  | { error: true; message: string }
+> {
   try {
-    if (!base64Image) throw new Error("No image provided");
+    if (!base64Image) {
+      return {
+        error: true,
+        message: "No image provided",
+      };
+    }
 
     const response = await model.generateContent({
-      contents: [{
-        role: "user",
-        parts: [
-          {
-            text: `You are analyzing an image of a restaurant menu.
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `You are analyzing an image of a restaurant menu.
                   Your job is to extract each **menu item** as an object with two fields:
                   1. "name": the name of the menu item  
                   2. "allergens": an array of allergens (like gluten, egg, soy, etc.)
@@ -156,51 +180,49 @@ export async function processImageWithGemini(base64Image: string) {
                   - If a menu item is under a category like "Pizza", "Burgers", "Combos", or "Country Dinners", assume it inherits base ingredients typical of that category unless stated otherwise. For example, if a dish is under "BBQ" and contains pulled pork or ribs, assume BBQ sauce is used and may contain gluten.
                   - Do not treat menu items as standalone unless they appear outside a category.
                   - No markdown, no extra text — just raw JSON`,
-          },
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: base64Image,
-            }
-          }
-        ]
-      }],
-      // Adjusted models creativity settings to be more precise
-      // and less creative, as this is a factual task
+            },
+            {
+              inlineData: {
+                mimeType: "image/jpeg",
+                data: base64Image,
+              },
+            },
+          ],
+        },
+      ],
       generationConfig: {
         temperature: 0,
         maxOutputTokens: 4096,
-      }
+      },
     });
 
     // Extract Gemini response and parse the JSON data safely
     const rawText = await response.response.text();
-    const cleanText = rawText.replace(/```json|```/g, '').trim();
+    const cleanText = rawText.replace(/```json|```/g, "").trim();
 
     try {
       const allergenData = JSON.parse(cleanText);
-      if (!allergenData) throw new Error("Could not generate json form of allergen");
+      if (!allergenData) {
+        return {
+          error: true,
+          message: "Could not generate json form of allergen",
+        };
+      }
 
       console.log(allergenData);
       return allergenData;
-    }
-
-    // Error if problem with JSON/file parsing
-    catch (error) {
+    } catch (error) {
       console.log("Error in processing:", error);
       return {
         error: true,
-        message: "Error in processing file"
+        message: "Error in processing file",
       };
     }
-  }
-
-  // Error if problem with Gemini
-  catch (error) {
+  } catch (error) {
     console.log("Error in Gemini", error);
     return {
       error: true,
-      message: "Gemini failed"
+      message: "Gemini failed",
     };
   }
 }
@@ -214,18 +236,18 @@ export async function processImageWithGemini(base64Image: string) {
  */
 export function validateCameraData(
   restaurantName: string,
-  location: {lat: number, lng: number},
-  menuItems: Array<{name: string, allergens: string[]}>
+  location: { lat: number; lng: number },
+  menuItems: Array<{ name: string; allergens: string[] }>
 ): boolean {
   if (!restaurantName || !location || !menuItems) {
-    console.error('❌ Invalid camera data: missing required fields');
+    console.error("❌ Invalid camera data: missing required fields");
     return false;
   }
-  
+
   if (menuItems.length === 0) {
-    console.error('❌ Invalid camera data: no menu items found');
+    console.error("❌ Invalid camera data: no menu items found");
     return false;
   }
-  
+
   return true;
-} 
+}
