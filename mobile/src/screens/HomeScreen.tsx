@@ -318,6 +318,14 @@ const HomeScreen = () => {
   }, [restaurants, searchText, locationFilter]);
 
   const uploadMenuImage = async (base64: string, restaurantName: string, location: { lat: number; lng: number }) => {
+    let didTimeout = false;
+    // Start a 40-second timeout
+    const timeoutId = setTimeout(() => {
+      didTimeout = true;
+      setShowLoadingOverlay(false);
+      setShowSuccessOverlay(false);
+      setShowNoMenuModal(true);
+    }, 40000);
     try {
       // Call backend for Gemini processing
       const response = await fetch(`${BASE_URL}/api/upload-menu`, {
@@ -329,6 +337,8 @@ const HomeScreen = () => {
           location,
         }),
       });
+      if (didTimeout) return; // If already timed out, don't continue
+      clearTimeout(timeoutId);
       const data = await response.json();
       // Robustly extract menuItems and other fields
       let menuItems = [];
@@ -592,6 +602,8 @@ const HomeScreen = () => {
         setPendingLocation(location);
         setRestaurantNameInput('');
         setRestaurantNameModalVisible(true);
+        // Clear the photoUri param so this effect can trigger again for new photos
+        (navigation as any).setParams?.({ photoUri: undefined });
       })();
     }
   }, [route]);
