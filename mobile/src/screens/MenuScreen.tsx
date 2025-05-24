@@ -48,6 +48,16 @@ import { fetchLogoDevUrl } from '../api/logoDevApi';
 import { sharedEditRestaurant } from '../utils/editRestaurantShared';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import PeanutOutline from '../../assets/icons/PeanutOutline.svg';
+import Milk from '../../assets/icons/Milk.svg';
+import Eggs from '../../assets/icons/Eggs.svg';
+import FishOutline from '../../assets/icons/FishOutline.svg';
+import Shrimp from '../../assets/icons/Shrimp.svg';
+import TreePine from '../../assets/icons/TreePine.svg';
+import Bread from '../../assets/icons/Bread.svg';
+import Beans from '../../assets/icons/Beans.svg';
+import Sesame from '../../assets/icons/Sesame.svg';
+import Carousel from 'react-native-reanimated-carousel';
 
 const { width } = Dimensions.get('window');
 
@@ -110,6 +120,25 @@ function getSimilarity(a: string, b: string) {
   }
   return matches === bWords.length ? 90 : matches > 0 ? 70 : 0;
 }
+
+// Type the allergenIcons mapping
+const allergenIcons: Record<string, React.FC<any>> = {
+  peanut: PeanutOutline,
+  milk: Milk,
+  egg: Eggs,
+  eggs: Eggs,
+  fish: FishOutline,
+  shellfish: Shrimp,
+  'tree nut': TreePine,
+  'tree nuts': TreePine,
+  gluten: Bread,
+  wheat: Bread,
+  soy: Beans,
+  sesame: Sesame,
+};
+
+const MODAL_CARD_WIDTH = 120;
+const MODAL_CARD_HEIGHT = 140;
 
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
@@ -410,17 +439,21 @@ export default function MenuScreen() {
                 <View style={styles.allergenRow}>
                   <Text style={[styles.menuItemAllergensExpanded, { fontSize: 18 }]}>Contains:</Text>
                   <Text style={[styles.allergenText, { marginLeft: 8, fontSize: 18 }]}> 
-                    {item.allergens.map((allergen, i) => (
-                      <Text key={i}>
-                        {i > 0 ? ', ' : ''}
-                        <Text style={userAllergies.includes(allergen)
-                          ? { fontWeight: 'bold', color: '#ff4d4d', fontFamily: 'ReadexPro-Bold' }
-                          : { fontWeight: 'normal', color: '#222', fontFamily: 'ReadexPro-Regular' }
-                        }>
-                          {allergen}
-                        </Text>
-                      </Text>
-                    ))}
+                    {item.allergens.map((allergen, i) => {
+                      const key = allergen.toLowerCase().trim() as keyof typeof allergenIcons;
+                      const Icon = allergenIcons[key];
+                      return (
+                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          {i > 0 && <Text>, </Text>}
+                          {Icon && <Icon width={20} height={20} style={{ marginRight: 4 }} />}
+                          <Text style={userAllergies.includes(allergen)
+                            ? { fontWeight: 'bold', color: '#ff4d4d', fontFamily: 'ReadexPro-Bold' }
+                            : {}}>
+                            {allergen}
+                          </Text>
+                        </View>
+                      );
+                    })}
                   </Text>
                 </View>
               </View>
@@ -575,24 +608,50 @@ export default function MenuScreen() {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Edit Allergens</Text>
               <View style={styles.modalAllergenGrid}>
-                {ALLERGENS.map((allergen) => (
-                  <TouchableOpacity
-                    key={allergen.id}
-                    style={[
-                      styles.modalAllergenButton,
-                      selectedAllergens.includes(allergen.id) && styles.modalAllergenButtonSelected
-                    ]}
-                    onPress={() => {
-                      setSelectedAllergens((current) =>
-                        (current as string[]).includes(allergen.id)
-                          ? (current as string[]).filter(id => id !== allergen.id)
-                          : [...(current as string[]), allergen.id]
-                      );
+                {Array.from({ length: Math.ceil(ALLERGENS.length / 3) }).map((_, rowIdx, rowArr) => (
+                  <View
+                    key={rowIdx}
+                    style={{
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      width: '100%',
+                      marginBottom: rowIdx < rowArr.length - 1 ? 14 : 0,
                     }}
                   >
-                    <Text style={styles.modalAllergenEmoji}>{allergen.emoji}</Text>
-                    <Text style={styles.modalAllergenText}>{allergen.name}</Text>
-                  </TouchableOpacity>
+                    {ALLERGENS.slice(rowIdx * 3, rowIdx * 3 + 3).map((allergen) => {
+                      let iconKey = allergen.id.toLowerCase();
+                      if (iconKey === 'peanuts') iconKey = 'peanut';
+                      if (iconKey === 'treenuts') iconKey = 'tree nuts';
+                      if (iconKey === 'eggs' || iconKey === 'egg') iconKey = 'eggs';
+                      if (iconKey === 'shellfish') iconKey = 'shellfish';
+                      if (iconKey === 'dairy' || iconKey === 'milk') iconKey = 'milk';
+                      if (iconKey === 'gluten' || iconKey === 'wheat') iconKey = 'gluten';
+                      if (iconKey === 'soy') iconKey = 'soy';
+                      if (iconKey === 'sesame') iconKey = 'sesame';
+                      const Icon = allergenIcons[iconKey];
+                      return (
+                        <TouchableOpacity
+                          key={allergen.id}
+                          style={[
+                            styles.modalAllergenButton,
+                            { marginHorizontal: 10 },
+                            selectedAllergens.includes(allergen.id) && styles.modalAllergenButtonSelected
+                          ]}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setSelectedAllergens((current) =>
+                              (current as string[]).includes(allergen.id)
+                                ? (current as string[]).filter(id => id !== allergen.id)
+                                : [...(current as string[]), allergen.id]
+                            );
+                          }}
+                        >
+                          {Icon && <Icon width={24} height={24} style={{ marginBottom: 2 }} />}
+                          <Text style={styles.modalAllergenText}>{allergen.name}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
                 ))}
               </View>
               <TouchableOpacity
@@ -631,7 +690,7 @@ export default function MenuScreen() {
                 editable={!editSaving}
               />
               <TouchableOpacity
-                style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
+                style={{ backgroundColor: '#DA291C', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
                 onPress={handleEditNameSubmit}
                 disabled={editSaving}
               >
@@ -797,42 +856,39 @@ const styles = StyleSheet.create({
     fontFamily: 'ReadexPro-Bold',
   },
   modalAllergenGrid: {
+    width: '100%',
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: 18,
-    width: '100%',
-  },
-  modalAllergenButton: {
-    width: '28%',
-    aspectRatio: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+  },
+  modalAllergenButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
     backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+    position: 'relative',
   },
   modalAllergenButtonSelected: {
-    borderColor: '#007AFF',
-    borderWidth: 2,
-    backgroundColor: '#F0F8FF',
-  },
-  modalAllergenEmoji: {
-    fontSize: 22,
-    marginBottom: 4,
-    fontFamily: 'ReadexPro-Regular',
+    backgroundColor: '#ffeaea',
   },
   modalAllergenText: {
-    fontSize: 12,
+    fontSize: 11,
+    marginTop: 2,
+    textAlign: 'center',
     fontWeight: 'bold',
     color: '#222',
-    textAlign: 'center',
     fontFamily: 'ReadexPro-Regular',
   },
   modalSaveButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: '#DA291C',
     paddingVertical: 6,
     paddingHorizontal: 18,
     borderRadius: 8,

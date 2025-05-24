@@ -880,7 +880,10 @@ const HomeScreen = () => {
   const listHeader = useMemo(() => (
     <>
       <View style={{ alignItems: 'center', marginBottom: 8, marginTop: 150 }}>
-        <TouchableOpacity onPress={() => setCautionModalVisible(true)}>
+        <TouchableOpacity onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setCautionModalVisible(true);
+        }}>
           <Text style={styles.title}>
             <Text style={[styles.epi, cautionModalVisible && { color: '#DA291C' }]}>Epi</Text>
             <Text style={[styles.eats, cautionModalVisible && { color: '#DA291C' }]}>Eats</Text>
@@ -910,6 +913,7 @@ const HomeScreen = () => {
             )}
             <TouchableOpacity
               onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 if (locationFilter) {
                   setLocationFilter(null);
                 } else {
@@ -979,7 +983,7 @@ const HomeScreen = () => {
               onPress={takePhoto}
               accessibilityLabel="Add menu photo"
             >
-              <MaterialCommunityIcons name="peanut" size={40} color="#222" />
+              <Feather name="camera" size={36} color="#222" />
             </TouchableOpacity>
           </View>
         </View>
@@ -1066,7 +1070,7 @@ const HomeScreen = () => {
                 autoFocus
               />
               <TouchableOpacity
-                style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center' }}
+                style={{ backgroundColor: '#DA291C', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center' }}
                 onPress={handleRestaurantNameSubmit}
               >
                 <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Submit</Text>
@@ -1371,16 +1375,17 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   iconButton: {
-    backgroundColor: '#fff',
-    borderRadius: 32,
+    backgroundColor: 'transparent',
+    borderRadius: 0,
     width: 48,
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#222',
+    borderWidth: 0,
+    borderColor: 'transparent',
     marginHorizontal: 12,
     alignSelf: 'center',
+    marginBottom: 20,
   },
   locationButton: {
     backgroundColor: '#fff',
@@ -1403,30 +1408,32 @@ const styles = StyleSheet.create({
     top: 80,
     left: 24,
     zIndex: 20,
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 4,
   },
   helpButtonRight: {
     position: 'absolute',
     top: 80,
     right: 24,
     zIndex: 20,
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 4,
   },
   userNameContainer: {
     position: 'absolute',

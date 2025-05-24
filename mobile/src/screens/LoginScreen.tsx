@@ -44,7 +44,7 @@ export default function TitleScreen() {
   }, []);
 
   const handleContinue = () => {
-    navigation.navigate('InstructionPage');
+    navigation.navigate('OnboardingCarouselDemo' as any);
   };
 
   return (
@@ -104,15 +104,14 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 18,
-    fontStyle: 'italic',
-    color: '#666',
+    fontFamily: 'ReadexPro-Regular',
     textAlign: 'center',
     marginTop: 32,
-    fontFamily: 'ReadexPro-Regular',
+    color: '#222',
   },
   bottomButtonContainer: {
     position: 'absolute',
-    bottom: 350,
+    bottom: 200,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -127,6 +126,6 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 20,
     fontWeight: 'bold',
-    fontFamily: 'ReadexPro-Regular',
+    fontFamily: 'ReadexPro-Bold',
   },
 });

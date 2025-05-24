@@ -16,9 +16,9 @@ import { UserProfileProvider } from './src/context/UserProfileContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Font from 'expo-font';
-import { View, Text } from 'react-native';
+import { View, Text, Button, Alert } from 'react-native';
 
-const Stack = createNativeStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator(); // Use non-typed stack for temp single screen
 
 export default function App() {
   const [fontsLoaded] = Font.useFonts({
@@ -27,6 +27,17 @@ export default function App() {
   });
   const [initialRoute, setInitialRoute] = React.useState<string | null>(null);
 
+  // Debug: clear AsyncStorage button for onboarding
+  const clearAsyncStorage = async () => {
+    try {
+      await AsyncStorage.clear();
+      Alert.alert('AsyncStorage cleared!');
+    } catch (e) {
+      Alert.alert('Failed to clear AsyncStorage');
+    }
+  };
+
+  // --- ORIGINAL NAVIGATION LOGIC (restore this when done) ---
   React.useEffect(() => {
     (async () => {
       try {
@@ -42,76 +53,28 @@ export default function App() {
     })();
   }, []);
 
-  if (!fontsLoaded) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><Text>Loading fonts...</Text></View>;
-  if (!initialRoute) return null; // or a splash/loading screen
+  if (!fontsLoaded || !initialRoute) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><Text>Loading fonts...</Text></View>;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* Debug button: remove after onboarding work is done */}
+      {__DEV__ && (
+        <View style={{ position: 'absolute', top: 40, left: 0, right: 0, zIndex: 9999, alignItems: 'center' }}>
+          <Button title="Clear AsyncStorage" color="#DA291C" onPress={clearAsyncStorage} />
+        </View>
+      )}
       <UserProfileProvider>
         <NavigationContainer>
-          <Stack.Navigator initialRouteName={initialRoute as any}>
-            <Stack.Screen
-              name="Login"
-              component={LoginScreen}
-              options={{ 
-                headerShown: false,
-                gestureEnabled: false,
-              }}
-            />
-            <Stack.Screen
-              name="Allergen"
-              component={AllergenScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{
-                headerShown: false,
-                headerBackVisible: false,
-                gestureEnabled: false,
-              }}
-            />
-            <Stack.Screen
-              name="Menu"
-              component={MenuScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Profile"
-              component={ProfileScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen 
-              name="InstructionPage"
-              component={InstructionPage}
-              options={{
-                headerShown: false,
-                gestureEnabled: false,
-              }}
-            />
-            <Stack.Screen 
-              name="ProfileSetup"
-              component={ProfileSetup}
-              options={({ route }) => ({
-                headerShown: false,
-                gestureEnabled: !!route.params?.canGoBack,
-                headerBackVisible: !!route.params?.canGoBack,
-              })}
-            />
-            <Stack.Screen 
-              name="Welcome"
-              component={WelcomeScreen}
-              options={{
-                headerShown: false,
-                gestureEnabled: false,
-              }}
-            />
-            <Stack.Screen
-              name="Camera"
-              component={CameraScreen}
-              options={{ headerShown: false }}
-            />
+          <Stack.Navigator initialRouteName={initialRoute as any} screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Allergen" component={AllergenScreen} />
+            <Stack.Screen name="Home" component={HomeScreen} />
+            <Stack.Screen name="Menu" component={MenuScreen} />
+            <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="InstructionPage" component={InstructionPage} />
+            <Stack.Screen name="ProfileSetup" component={ProfileSetup} />
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            <Stack.Screen name="Camera" component={CameraScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </UserProfileProvider>
