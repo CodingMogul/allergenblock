@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
     fontSize: 54,
     textAlign: 'center',
     marginBottom: 16,
+    fontFamily: 'ReadexPro-Bold',
   },
   epi: {
     fontFamily: 'ReadexPro-Regular',
@@ -107,6 +108,7 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginTop: 32,
+    fontFamily: 'ReadexPro-Regular',
   },
   bottomButtonContainer: {
     position: 'absolute',

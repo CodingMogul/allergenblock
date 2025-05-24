@@ -20,6 +20,7 @@ import {
   GestureHandlerRootView,
   TapGestureHandlerEventPayload,
   GestureEvent,
+  PanGestureHandler,
 } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -28,6 +29,8 @@ import Animated, {
   interpolate,
   useAnimatedGestureHandler,
   runOnJS,
+  Extrapolate,
+  useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -135,6 +138,22 @@ export default function MenuScreen() {
   const [searchBarVisible, setSearchBarVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const searchInputRef = React.useRef<RNTextInput>(null);
+  const scrollY = useSharedValue(0);
+
+  const topAnimatedStyle = useAnimatedStyle(() => {
+    const translateY = interpolate(scrollY.value, [0, 60, 180], [0, -10, -50], Extrapolate.CLAMP);
+    const opacity = interpolate(scrollY.value, [0, 60, 180], [1, 0.7, 0], Extrapolate.CLAMP);
+    return {
+      transform: [{ translateY }],
+      opacity,
+    };
+  });
+
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
 
   useFocusEffect(
     React.useCallback(() => {
@@ -195,7 +214,7 @@ export default function MenuScreen() {
   };
 
   // Use profile.allergens for allergen matching
-  const userAllergies = profile.allergens.length > 0 ? profile.allergens : ['peanuts', 'gluten', 'dairy'];
+  const userAllergies = Array.isArray(profile.allergens) ? profile.allergens : [];
 
   // Handler to open edit modal
   const handleEditRestaurantName = () => {
@@ -255,7 +274,32 @@ const Card = ({ item, index }: { item: MenuItem; index: number }) => {
     {
       minHeight: isExpanded ? 160 : 100,
     },
-  ];
+    {
+      flexDirection: 'row' as 'row',
+      alignItems: 'center' as 'center',
+      justifyContent: 'space-between' as 'space-between',
+    },
+  ].filter(Boolean);
+
+  // Helper to render tally marks as white rounded rectangles
+  const renderTallies = (count: number) => {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+        {Array.from({ length: count }).map((_, i) => (
+          <View
+            key={i}
+            style={{
+              width: 8,
+              height: 28,
+              borderRadius: 4,
+              backgroundColor: '#fff',
+              marginHorizontal: 2,
+            }}
+          />
+        ))}
+      </View>
+    );
+  };
 
   const CardContainer = ({ children }: { children: React.ReactNode }) => (
     <View style={baseCardStyle}>{children}</View>
@@ -271,7 +315,20 @@ const Card = ({ item, index }: { item: MenuItem; index: number }) => {
             <View style={styles.menuTextCenterer}>
               <Text style={styles.menuItemName}>{item.name}</Text>
             </View>
-            <Text style={[styles.menuItemAllergensCount, { color: '#4CAF50' }]}>No allergen matches</Text>
+          </View>
+          {/* Always render the green box for no allergen matches */}
+          <View style={{ marginRight: 4, marginLeft: 8, alignItems: 'center', justifyContent: 'center' }}>
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 7,
+                backgroundColor: '#4CAF50',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'row' as 'row',
+              }}
+            />
           </View>
         </CardContainer>
       </Pressable>
@@ -292,19 +349,11 @@ const Card = ({ item, index }: { item: MenuItem; index: number }) => {
           <View style={styles.menuTextCenterer}>
             <Text style={styles.menuItemName}>{item.name}</Text>
           </View>
-          <Text style={[
-            styles.menuItemAllergensCount,
-            matchCount === 0 ? { color: '#4CAF50' } : {}
-          ]}>
-            {matchCount === 0
-              ? 'No allergen matches'
-              : `${matchCount} allergen(s) match your profile`}
-          </Text>
           {isExpanded && (
             <View style={styles.allergenListContainer}>
               <View style={styles.allergenRow}>
                 <Text style={styles.menuItemAllergensExpanded}>Contains:</Text>
-                <Text style={[styles.allergenText, { marginLeft: 4 }]}>
+                <Text style={[styles.allergenText, { marginLeft: 4 }]}> 
                   {item.allergens.map((allergen, i) => (
                     <Text key={i}>
                       {i > 0 ? ', ' : ''}
@@ -318,10 +367,113 @@ const Card = ({ item, index }: { item: MenuItem; index: number }) => {
             </View>
           )}
         </View>
+        {/* Allergen tally square */}
+        <View style={{ marginRight: 4, marginLeft: 8, alignItems: 'center', justifyContent: 'center' }}>
+          <View
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              backgroundColor: matchCount > 0 ? '#ff4d4d' : '#4CAF50',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row' as 'row',
+            }}
+          >
+            {matchCount > 0 ? (
+              <View style={{ flexDirection: 'row' as 'row', alignItems: 'center', justifyContent: 'center' }}>
+                {Array.from({ length: matchCount }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      width: 4,
+                      height: 16,
+                      borderRadius: 2,
+                      backgroundColor: '#fff',
+                      marginHorizontal: 1,
+                    }}
+                  />
+                ))}
+              </View>
+            ) : (
+              // Always render the green box, but empty
+              null
+            )}
+          </View>
+        </View>
       </CardContainer>
     </Pressable>
   );
 };
+
+  const renderListHeader = () => (
+    <>
+      <Animated.View style={topAnimatedStyle}>
+        <View style={{ alignItems: 'center', marginBottom: 8, marginTop: 125 }}>
+          {latestRestaurant.brandLogo && (
+            <Image source={{ uri: latestRestaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
+          )}
+          <Pressable
+            onLongPress={handleEditRestaurantName}
+            delayLongPress={500}
+            style={{ width: '100%' }}
+          >
+            <Text style={styles.header}>
+              {`${getDisplayName(latestRestaurant)} Menu`}
+            </Text>
+          </Pressable>
+          {/* Magnifying glass icon or search bar */}
+          {!searchBarVisible ? (
+            <View style={{ height: 60, justifyContent: 'center', alignItems: 'center', marginTop: 0, marginBottom: -15 }}>
+              <TouchableOpacity onPress={() => {
+                setSearchBarVisible(true);
+                setTimeout(() => searchInputRef.current?.focus(), 100);
+              }} style={{ marginTop: 0, marginBottom: 0 }}>
+                <Feather name="search" size={28} color="#222" />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          {searchBarVisible && (
+            <RNTextInput
+              ref={searchInputRef}
+              style={{
+                width: '90%',
+                backgroundColor: '#fff',
+                borderRadius: 25,
+                borderWidth: 1,
+                borderColor: '#000',
+                paddingVertical: 7,
+                paddingHorizontal: 16,
+                fontSize: 16,
+                fontFamily: 'Inter-Regular',
+                marginBottom: 8,
+                alignSelf: 'center',
+              }}
+              placeholder="Search menu items"
+              placeholderTextColor="#999"
+              value={searchText}
+              onChangeText={setSearchText}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
+              onBlur={() => setSearchBarVisible(false)}
+              autoFocus
+            />
+          )}
+        </View>
+      </Animated.View>
+      <LinearGradient
+        colors={['#fff', 'rgba(255,255,255,0)']}
+        style={{
+          width: '100%',
+          height: 32,
+          marginTop: -12,
+          marginBottom: 8,
+          zIndex: 2,
+        }}
+        pointerEvents="none"
+      />
+    </>
+  );
 
   return (
     <TouchableWithoutFeedback
@@ -335,14 +487,14 @@ const Card = ({ item, index }: { item: MenuItem; index: number }) => {
     >
       <GestureHandlerRootView style={styles.container}>
         <TouchableOpacity
-          style={styles.homeButton}
+          style={[styles.homeButton, { backgroundColor: '#fff', borderRadius: 18, width: 36, height: 36, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }]}
           onPress={() => navigation.replace('Home')}
           accessibilityLabel="Go to Home"
         >
           <Feather name="home" size={28} color="#222" />
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.profileButton}
+          style={[styles.profileButton, { backgroundColor: '#fff', borderRadius: 18, width: 36, height: 36, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }]}
           onPress={openAllergenModal}
           accessibilityLabel="Profile"
         >
@@ -390,66 +542,6 @@ const Card = ({ item, index }: { item: MenuItem; index: number }) => {
           </View>
         </Modal>
 
-        <View style={{ alignItems: 'center', marginBottom: 8 }}>
-          {latestRestaurant.brandLogo && (
-            <Image source={{ uri: latestRestaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
-          )}
-          <Pressable
-            onLongPress={handleEditRestaurantName}
-            delayLongPress={500}
-            style={{ width: '100%' }}
-          >
-            <Text style={styles.header}>
-              {`${getDisplayName(latestRestaurant)} Menu`}
-            </Text>
-          </Pressable>
-        </View>
-        <LinearGradient
-          colors={['#fff', 'rgba(255,255,255,0)']}
-          style={{
-            width: '100%',
-            height: 32,
-            marginTop: -12,
-            marginBottom: 8,
-            zIndex: 2,
-          }}
-          pointerEvents="none"
-        />
-        {/* Magnifying glass icon or search bar */}
-        {!searchBarVisible ? (
-          <TouchableOpacity onPress={() => {
-            setSearchBarVisible(true);
-            setTimeout(() => searchInputRef.current?.focus(), 100);
-          }} style={{ marginTop: 0, marginBottom: 2 }}>
-            <Feather name="search" size={28} color="#222" />
-          </TouchableOpacity>
-        ) : (
-          <RNTextInput
-            ref={searchInputRef}
-            style={{
-              width: '90%',
-              backgroundColor: '#fff',
-              borderRadius: 25,
-              borderWidth: 1,
-              borderColor: '#000',
-              paddingVertical: 7,
-              paddingHorizontal: 16,
-              fontSize: 16,
-              fontFamily: 'Inter-Regular',
-              marginBottom: 8,
-              alignSelf: 'center',
-            }}
-            placeholder="Search menu items"
-            placeholderTextColor="#999"
-            value={searchText}
-            onChangeText={setSearchText}
-            returnKeyType="done"
-            onSubmitEditing={Keyboard.dismiss}
-            onBlur={() => setSearchBarVisible(false)}
-            autoFocus
-          />
-        )}
-
         {/* Edit Restaurant Name Modal */}
         <Modal
           visible={editModalVisible}
@@ -490,11 +582,14 @@ const Card = ({ item, index }: { item: MenuItem; index: number }) => {
         {loading ? (
           <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />
         ) : (
-          <FlatList
+          <Animated.FlatList
             data={filteredMenu}
             renderItem={({ item, index }) => <Card item={item} index={index} />}
             keyExtractor={(item, index) => item.id ? String(item.id) : String(index)}
             contentContainerStyle={styles.scrollView}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            ListHeaderComponent={renderListHeader}
           />
         )}
       </GestureHandlerRootView>
@@ -505,16 +600,15 @@ const Card = ({ item, index }: { item: MenuItem; index: number }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 150,
     backgroundColor: '#fff',
     alignItems: 'center',
   },
   header: {
-    fontSize: 22,
+    fontSize: 30,
     fontWeight: 'bold',
     marginBottom: 16,
     alignSelf: 'center',
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
   },
   scrollView: {
     width: '100%',
@@ -554,11 +648,11 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   menuItemName: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 0,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'ReadexPro-Regular',
   },
   menuItemAllergensCount: {
     fontSize: 12,
@@ -566,7 +660,7 @@ const styles = StyleSheet.create({
     marginTop: -20,
     marginBottom: 20,
     textAlign: 'center',
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'ReadexPro-Regular',
   },
   allergenListContainer: {
     width: '100%',
@@ -579,7 +673,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
     fontWeight: 'bold',
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
   },
   allergenRow: {
     flexDirection: 'row',
@@ -589,7 +683,7 @@ const styles = StyleSheet.create({
   allergenText: {
     color: '#000',
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'ReadexPro-Regular',
   },
   homeButton: {
     position: 'absolute',
@@ -636,7 +730,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 18,
     color: '#222',
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
   },
   modalAllergenGrid: {
     flexDirection: 'row',
@@ -664,14 +758,14 @@ const styles = StyleSheet.create({
   modalAllergenEmoji: {
     fontSize: 22,
     marginBottom: 4,
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'ReadexPro-Regular',
   },
   modalAllergenText: {
     fontSize: 12,
     fontWeight: 'bold',
     color: '#222',
     textAlign: 'center',
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'ReadexPro-Regular',
   },
   modalSaveButton: {
     backgroundColor: '#2563eb',
@@ -685,6 +779,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
   },
 });

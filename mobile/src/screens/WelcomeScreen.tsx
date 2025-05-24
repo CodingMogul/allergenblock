@@ -62,5 +62,6 @@ const styles = StyleSheet.create({
   },
   nameText: {
     color: '#DA291C',
+    fontFamily: 'ReadexPro-Regular',
   },
 }); 
