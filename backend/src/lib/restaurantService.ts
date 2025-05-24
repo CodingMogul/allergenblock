@@ -20,39 +20,8 @@ export async function getMenuContext(
   location: { lat: number; lng: number },
   restaurantId?: string
 ) {
-  // If restaurantId is provided, try to find the restaurant directly by ID
-  if (restaurantId) {
-    const restaurant = await db.db.collection("restaurants").findOne({
-      _id: new ObjectId(restaurantId)
-    });
-    if (restaurant) return restaurant;
-  }
-  
-  // First try exact match
-  const exactMatch = await db.db.collection("restaurants").findOne({
-    restaurantName,
-    location: {
-      $near: {
-        $geometry: { type: "Point", coordinates: [location.lng, location.lat] },
-        $maxDistance: RESTAURANT_DISTANCE_THRESHOLD,
-      },
-    },
-  });
-
-  if (exactMatch) return exactMatch;
-
-  // If no exact match, try similar names within distance
-  const allRestaurants = await db.db.collection("restaurants").find({}).toArray();
-  
-  return allRestaurants.find(restaurant => {
-    const nameSimilarity = calculateStringSimilarity(restaurant.restaurantName, restaurantName);
-    const distance = calculateDistance(
-      { lat: restaurant.location.coordinates[1], lng: restaurant.location.coordinates[0] },
-      location
-    );
-    
-    return nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD && distance <= RESTAURANT_DISTANCE_THRESHOLD;
-  });
+  // MongoDB removed: always return null
+  return null;
 }
 
 /**
@@ -64,71 +33,13 @@ export async function storeRestaurantWithMenu(
   try {
     // Check Google Maps for restaurant match
     const googleMatch = await checkGoogleMapsRestaurant(menuData.restaurantName, menuData.location);
-    
     // Fetch logo if Google match is found
     let brandLogo: string | null = null;
     if (googleMatch.found && googleMatch.googlePlace && googleMatch.googlePlace.name) {
       brandLogo = await fetchLogoUrl(googleMatch.googlePlace.name);
     }
-    
-    // Find restaurants with similar names
-    const existingRestaurants = await db.db.collection("restaurants").find({}).toArray();
-    
-    // Check for similar restaurants within distance threshold
-    const similarRestaurant = existingRestaurants.find(restaurant => {
-      const nameSimilarity = calculateStringSimilarity(restaurant.restaurantName, menuData.restaurantName);
-      const distance = calculateDistance(
-        { lat: restaurant.location.coordinates[1], lng: restaurant.location.coordinates[0] },
-        menuData.location
-      );
-      
-      return nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD && distance <= RESTAURANT_DISTANCE_THRESHOLD;
-    });
-
-    // Overwrite restaurantName with Google Place name if matched
-    const finalRestaurantName = (googleMatch.found && googleMatch.googlePlace && googleMatch.googlePlace.name)
-      ? googleMatch.googlePlace.name
-      : menuData.restaurantName;
-
-    const restaurantData = {
-      restaurantName: finalRestaurantName,
-      location: googleMatch.found && googleMatch.googlePlace ? {
-        type: "Point",
-        coordinates: [googleMatch.googlePlace.location.lng, googleMatch.googlePlace.location.lat]
-      } : {
-        type: "Point",
-        coordinates: [menuData.location.lng, menuData.location.lat]
-      },
-      menuItems: menuData.menuItems.map(item => ({
-        name: item.name,
-        allergens: item.allergens,
-        certainty: item.certainty
-      })),
-      source: menuData.source,
-      apimatch: googleMatch.found ? 'google' : 'none',
-      ...(googleMatch.googlePlace && { googlePlace: googleMatch.googlePlace }),
-      ...(brandLogo ? { brandLogo } : {}),
-      updatedAt: new Date()
-    };
-
-    if (similarRestaurant) {
-      // Update existing restaurant with new menu data and unhide it
-      console.log('Similar restaurant found, updating menu data and unhiding:', menuData.restaurantName);
-      await db.db.collection("restaurants").updateOne(
-        { _id: similarRestaurant._id },
-        { $set: { ...restaurantData, hidden: false } }
-      );
-    } else {
-      // Create new restaurant document with menu data
-      console.log('Creating new restaurant document:', menuData.restaurantName);
-      await db.db.collection("restaurants").insertOne({
-        ...restaurantData,
-        createdAt: new Date(),
-        hidden: false
-      });
-    }
-    
-    console.log('Successfully stored restaurant data:', menuData.restaurantName);
+    // MongoDB removed: just log and return true
+    console.log('Simulated storing restaurant data:', menuData.restaurantName);
     return true;
   } catch (error) {
     console.error('Error storing restaurant data:', error);
@@ -146,20 +57,8 @@ export async function getRestaurantInfo(
   restaurantName: string,
   location: {lat: number, lng: number}
 ) {
-  try {
-    return db.db.collection("restaurants").findOne({
-      restaurantName,
-      location: {
-        $near: {
-          $geometry: { type: "Point", coordinates: [location.lng, location.lat] },
-          $maxDistance: 100,
-        },
-      },
-    });
-  } catch (error) {
-    console.error('Error retrieving restaurant info:', error);
-    return null;
-  }
+  // MongoDB removed: always return null
+  return null;
 }
 
 // Google-only match for restaurant name/location

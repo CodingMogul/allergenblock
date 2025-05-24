@@ -11,6 +11,9 @@ import {
   Image,
   Alert,
   TextInput,
+  Keyboard,
+  TextInput as RNTextInput,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import {
   TapGestureHandler,
@@ -29,6 +32,7 @@ import Animated, {
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { BASE_URL } from '../../config';
+import { BlurView } from 'expo-blur'; // if you want glass effect on iOS
 import { Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Feather } from '@expo/vector-icons';
@@ -39,6 +43,7 @@ import { useUserProfile } from '../context/UserProfileContext';
 import { fetchGooglePlace } from '../api/googleApi';
 import { fetchLogoDevUrl } from '../api/logoDevApi';
 import { sharedEditRestaurant } from '../utils/editRestaurantShared';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -89,6 +94,19 @@ function AnimatedDots({ saving }: { saving: boolean }) {
   return <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{'.'.repeat(dotCount)}</Text>;
 }
 
+// Add getSimilarity function from HomeScreen
+function getSimilarity(a: string, b: string) {
+  a = a.toLowerCase().replace(/\s+/g, '');
+  b = b.toLowerCase().replace(/\s+/g, '');
+  if (a.includes(b) || b.includes(a)) return 100;
+  const bWords = b.split(/[\s,]+/).filter(Boolean);
+  let matches = 0;
+  for (const word of bWords) {
+    if (a.includes(word)) matches++;
+  }
+  return matches === bWords.length ? 90 : matches > 0 ? 70 : 0;
+}
+
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
@@ -114,6 +132,9 @@ export default function MenuScreen() {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editNameInput, setEditNameInput] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [searchBarVisible, setSearchBarVisible] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const searchInputRef = React.useRef<RNTextInput>(null);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -207,27 +228,66 @@ export default function MenuScreen() {
     });
   };
 
-  const Card = ({ item, index }: { item: MenuItem; index: number }) => {
-    // Calculate actual allergen matches from the item's allergens
-    const normalizedUserAllergies = userAllergies.map(u => u.toLowerCase().trim());
-    const matchCount = item.allergens.filter(a => normalizedUserAllergies.includes(a.toLowerCase().trim())).length;
-    const isExpanded = expandedIndex === index && matchCount > 0;
-    const canExpand = matchCount > 0;
-    const [pressed, setPressed] = useState(false);
+  // Filter and sort menu items by similarity if searchText is present
+  const filteredMenu = React.useMemo(() => {
+    if (!searchText.trim()) return menu;
+    const search = searchText.trim().toLowerCase();
+    return [...menu]
+      .map(item => ({ ...item, similarity: getSimilarity(item.name, searchText) }))
+      .sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+  }, [menu, searchText]);
 
+const Card = ({ item, index }: { item: MenuItem; index: number }) => {
+  const normalizedUserAllergies = userAllergies.map(u => u.toLowerCase().trim());
+  const matchCount = item.allergens.filter(a => normalizedUserAllergies.includes(a.toLowerCase().trim())).length;
+  const isExpanded = expandedIndex === index && matchCount > 0;
+  const canExpand = matchCount > 0;
+  const [pressed, setPressed] = useState(false);
+
+  const baseCardStyle = [
+    styles.menuCard,
+    pressed && {
+      transform: [{ scale: 1.02 }],
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      elevation: 16,
+    },
+    {
+      minHeight: isExpanded ? 160 : 100,
+    },
+  ];
+
+  const CardContainer = ({ children }: { children: React.ReactNode }) => (
+    <View style={baseCardStyle}>{children}</View>
+    // Use BlurView on iOS if you want: 
+    // <BlurView intensity={40} tint="light" style={baseCardStyle}>{children}</BlurView>
+  );
+
+  if (!canExpand) {
     return (
-      <Pressable
-        onPressIn={() => setPressed(true)}
-        onPressOut={() => setPressed(false)}
-        onPress={() => {
-          if (canExpand) {
-            setExpandedIndex(isExpanded ? null : index);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
-        }}
-        style={[styles.menuCard, { backgroundColor: pressed ? '#e0e0e6' : '#f2f2f7', minHeight: isExpanded ? 160 : 100 }]}
-        disabled={!canExpand}
-      >
+      <Pressable>
+        <CardContainer>
+          <View style={styles.menuCardContent}>
+            <View style={styles.menuTextCenterer}>
+              <Text style={styles.menuItemName}>{item.name}</Text>
+            </View>
+            <Text style={[styles.menuItemAllergensCount, { color: '#4CAF50' }]}>No allergen matches</Text>
+          </View>
+        </CardContainer>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      onPress={() => {
+        setExpandedIndex(isExpanded ? null : index);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }}
+    >
+      <CardContainer>
         <View style={styles.menuCardContent}>
           <View style={styles.menuTextCenterer}>
             <Text style={styles.menuItemName}>{item.name}</Text>
@@ -236,16 +296,18 @@ export default function MenuScreen() {
             styles.menuItemAllergensCount,
             matchCount === 0 ? { color: '#4CAF50' } : {}
           ]}>
-            {matchCount === 0 ? 'No allergen matches' : `${matchCount} allergen(s) match your profile`}
+            {matchCount === 0
+              ? 'No allergen matches'
+              : `${matchCount} allergen(s) match your profile`}
           </Text>
           {isExpanded && (
             <View style={styles.allergenListContainer}>
               <View style={styles.allergenRow}>
                 <Text style={styles.menuItemAllergensExpanded}>Contains:</Text>
                 <Text style={[styles.allergenText, { marginLeft: 4 }]}>
-                  {item.allergens.map((allergen, index) => (
-                    <Text key={index}>
-                      {index > 0 ? ', ' : ''}
+                  {item.allergens.map((allergen, i) => (
+                    <Text key={i}>
+                      {i > 0 ? ', ' : ''}
                       <Text style={userAllergies.includes(allergen) ? { fontWeight: 'bold', color: '#ff4d4d' } : {}}>
                         {allergen}
                       </Text>
@@ -256,131 +318,187 @@ export default function MenuScreen() {
             </View>
           )}
         </View>
-      </Pressable>
-    );
-  };
+      </CardContainer>
+    </Pressable>
+  );
+};
 
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <TouchableOpacity
-        style={styles.homeButton}
-        onPress={() => navigation.replace('Home')}
-        accessibilityLabel="Go to Home"
-      >
-        <Feather name="home" size={28} color="#222" />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.profileButton}
-        onPress={openAllergenModal}
-        accessibilityLabel="Profile"
-      >
-        <Feather name="user" size={30} color="#222" />
-      </TouchableOpacity>
-
-      <Modal
-        visible={modalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Allergens</Text>
-            <View style={styles.modalAllergenGrid}>
-              {ALLERGENS.map((allergen) => (
-                <TouchableOpacity
-                  key={allergen.id}
-                  style={[
-                    styles.modalAllergenButton,
-                    selectedAllergens.includes(allergen.id) && styles.modalAllergenButtonSelected
-                  ]}
-                  onPress={() => {
-                    setSelectedAllergens((current) =>
-                      (current as string[]).includes(allergen.id)
-                        ? (current as string[]).filter(id => id !== allergen.id)
-                        : [...(current as string[]), allergen.id]
-                    );
-                  }}
-                >
-                  <Text style={styles.modalAllergenEmoji}>{allergen.emoji}</Text>
-                  <Text style={styles.modalAllergenText}>{allergen.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <TouchableOpacity
-              style={styles.modalSaveButton}
-              onPress={saveAllergens}
-              disabled={saving}
-            >
-              <Text style={styles.modalSaveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <View style={{ alignItems: 'center', marginBottom: 8 }}>
-        {latestRestaurant.brandLogo && (
-          <Image source={{ uri: latestRestaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
-        )}
-        <Pressable
-          onLongPress={handleEditRestaurantName}
-          delayLongPress={500}
-          style={{ width: '100%' }}
+    <TouchableWithoutFeedback
+      onPress={() => {
+        if (searchBarVisible) {
+          setSearchBarVisible(false);
+          Keyboard.dismiss();
+        }
+      }}
+      accessible={false}
+    >
+      <GestureHandlerRootView style={styles.container}>
+        <TouchableOpacity
+          style={styles.homeButton}
+          onPress={() => navigation.replace('Home')}
+          accessibilityLabel="Go to Home"
         >
-          <Text style={styles.header}>
-            {`${getDisplayName(latestRestaurant)} Menu`}
-          </Text>
-        </Pressable>
-      </View>
+          <Feather name="home" size={28} color="#222" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.profileButton}
+          onPress={openAllergenModal}
+          accessibilityLabel="Profile"
+        >
+          <Feather name="user" size={30} color="#222" />
+        </TouchableOpacity>
 
-      {/* Edit Restaurant Name Modal */}
-      <Modal
-        visible={editModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setEditModalVisible(false)}
-      >
-        <Pressable
-          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
-          onPress={() => setEditModalVisible(false)}
+        <Modal
+          visible={modalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Edit Allergens</Text>
+              <View style={styles.modalAllergenGrid}>
+                {ALLERGENS.map((allergen) => (
+                  <TouchableOpacity
+                    key={allergen.id}
+                    style={[
+                      styles.modalAllergenButton,
+                      selectedAllergens.includes(allergen.id) && styles.modalAllergenButtonSelected
+                    ]}
+                    onPress={() => {
+                      setSelectedAllergens((current) =>
+                        (current as string[]).includes(allergen.id)
+                          ? (current as string[]).filter(id => id !== allergen.id)
+                          : [...(current as string[]), allergen.id]
+                      );
+                    }}
+                  >
+                    <Text style={styles.modalAllergenEmoji}>{allergen.emoji}</Text>
+                    <Text style={styles.modalAllergenText}>{allergen.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={styles.modalSaveButton}
+                onPress={saveAllergens}
+                disabled={saving}
+              >
+                <Text style={styles.modalSaveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        <View style={{ alignItems: 'center', marginBottom: 8 }}>
+          {latestRestaurant.brandLogo && (
+            <Image source={{ uri: latestRestaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
+          )}
+          <Pressable
+            onLongPress={handleEditRestaurantName}
+            delayLongPress={500}
+            style={{ width: '100%' }}
+          >
+            <Text style={styles.header}>
+              {`${getDisplayName(latestRestaurant)} Menu`}
+            </Text>
+          </Pressable>
+        </View>
+        <LinearGradient
+          colors={['#fff', 'rgba(255,255,255,0)']}
+          style={{
+            width: '100%',
+            height: 32,
+            marginTop: -12,
+            marginBottom: 8,
+            zIndex: 2,
+          }}
+          pointerEvents="none"
+        />
+        {/* Magnifying glass icon or search bar */}
+        {!searchBarVisible ? (
+          <TouchableOpacity onPress={() => {
+            setSearchBarVisible(true);
+            setTimeout(() => searchInputRef.current?.focus(), 100);
+          }} style={{ marginTop: 0, marginBottom: 2 }}>
+            <Feather name="search" size={28} color="#222" />
+          </TouchableOpacity>
+        ) : (
+          <RNTextInput
+            ref={searchInputRef}
+            style={{
+              width: '90%',
+              backgroundColor: '#fff',
+              borderRadius: 25,
+              borderWidth: 1,
+              borderColor: '#000',
+              paddingVertical: 7,
+              paddingHorizontal: 16,
+              fontSize: 16,
+              fontFamily: 'Inter-Regular',
+              marginBottom: 8,
+              alignSelf: 'center',
+            }}
+            placeholder="Search menu items"
+            placeholderTextColor="#999"
+            value={searchText}
+            onChangeText={setSearchText}
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
+            onBlur={() => setSearchBarVisible(false)}
+            autoFocus
+          />
+        )}
+
+        {/* Edit Restaurant Name Modal */}
+        <Modal
+          visible={editModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setEditModalVisible(false)}
         >
           <Pressable
-            style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
-            onPress={(e) => e.stopPropagation()}
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
+            onPress={() => setEditModalVisible(false)}
           >
-            <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Edit Restaurant Name</Text>
-            <TextInput
-              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16 }}
-              placeholder="Restaurant Name"
-              value={editNameInput}
-              onChangeText={setEditNameInput}
-              autoFocus
-              editable={!editSaving}
-            />
-            <TouchableOpacity
-              style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
-              onPress={handleEditNameSubmit}
-              disabled={editSaving}
+            <Pressable
+              style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
+              onPress={(e) => e.stopPropagation()}
             >
-              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>
-                {editSaving ? <>Saving<AnimatedDots saving={editSaving} /></> : 'Save'}
-              </Text>
-            </TouchableOpacity>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Edit Restaurant Name</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16, fontFamily: 'Inter-Regular' }}
+                placeholder="Restaurant Name"
+                value={editNameInput}
+                onChangeText={setEditNameInput}
+                autoFocus
+                editable={!editSaving}
+              />
+              <TouchableOpacity
+                style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
+                onPress={handleEditNameSubmit}
+                disabled={editSaving}
+              >
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold', fontFamily: 'Inter-Bold' }}>
+                  {editSaving ? <>Saving<AnimatedDots saving={editSaving} /></> : 'Save'}
+                </Text>
+              </TouchableOpacity>
+            </Pressable>
           </Pressable>
-        </Pressable>
-      </Modal>
+        </Modal>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />
-      ) : (
-        <FlatList
-          data={menu}
-          renderItem={({ item, index }) => <Card item={item} index={index} />}
-          keyExtractor={(item, index) => item.id ? String(item.id) : String(index)}
-          contentContainerStyle={styles.scrollView}
-        />
-      )}
-    </GestureHandlerRootView>
+        {loading ? (
+          <ActivityIndicator size="large" color="#000" style={{ marginTop: 50 }} />
+        ) : (
+          <FlatList
+            data={filteredMenu}
+            renderItem={({ item, index }) => <Card item={item} index={index} />}
+            keyExtractor={(item, index) => item.id ? String(item.id) : String(index)}
+            contentContainerStyle={styles.scrollView}
+          />
+        )}
+      </GestureHandlerRootView>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -394,29 +512,34 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 40,
+    marginBottom: 16,
     alignSelf: 'center',
-    fontFamily: 'ReadexPro-Bold',
+    fontFamily: 'Inter-Bold',
   },
   scrollView: {
     width: '100%',
     padding: 20,
+    paddingTop: 36,
   },
+
   menuCard: {
-    width: width - 40,
-    height: 100,
+    width: width - 48,
     marginBottom: 20,
-    borderRadius: 10,
-    backgroundColor: '#f2f2f7',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
+    overflow: 'visible',
   },
+  
+
   menuCardContent: {
     flex: 1,
     width: '100%',
@@ -435,19 +558,19 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 0,
-    fontFamily: 'ReadexPro-Bold',
+    fontFamily: 'Inter-Regular',
   },
   menuItemAllergensCount: {
     fontSize: 12,
-    color: '#ff4d4d',
+    color: '#ff4d4d', // defined red
     marginTop: -20,
     marginBottom: 20,
     textAlign: 'center',
-    fontFamily: 'ReadexPro-Regular',
+    fontFamily: 'Inter-Regular',
   },
   allergenListContainer: {
     width: '100%',
-    marginTop: 0,
+    marginTop: 16,
     marginBottom: 20,
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -456,7 +579,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
     fontWeight: 'bold',
-    fontFamily: 'ReadexPro-Bold',
+    fontFamily: 'Inter-Bold',
   },
   allergenRow: {
     flexDirection: 'row',
@@ -466,7 +589,7 @@ const styles = StyleSheet.create({
   allergenText: {
     color: '#000',
     fontSize: 14,
-    fontFamily: 'ReadexPro-Regular',
+    fontFamily: 'Inter-Regular',
   },
   homeButton: {
     position: 'absolute',
@@ -513,7 +636,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 18,
     color: '#222',
-    fontFamily: 'ReadexPro-Bold',
+    fontFamily: 'Inter-Bold',
   },
   modalAllergenGrid: {
     flexDirection: 'row',
@@ -541,12 +664,14 @@ const styles = StyleSheet.create({
   modalAllergenEmoji: {
     fontSize: 22,
     marginBottom: 4,
+    fontFamily: 'Inter-Regular',
   },
   modalAllergenText: {
     fontSize: 12,
     fontWeight: 'bold',
     color: '#222',
     textAlign: 'center',
+    fontFamily: 'Inter-Regular',
   },
   modalSaveButton: {
     backgroundColor: '#2563eb',
@@ -560,6 +685,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
-    fontFamily: 'ReadexPro-Bold',
+    fontFamily: 'Inter-Bold',
   },
 });

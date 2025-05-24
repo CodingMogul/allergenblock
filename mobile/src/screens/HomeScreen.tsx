@@ -42,6 +42,7 @@ import { fetchLogoDevUrl } from '../api/logoDevApi';
 import uuid from 'react-native-uuid';
 import type { MenuItem, Restaurant } from '../restaurantData';
 import { Accelerometer } from 'expo-sensors';
+import { LinearGradient } from 'expo-linear-gradient';
 
 type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
 
@@ -547,6 +548,7 @@ const HomeScreen = () => {
       setDeleting(false);
       setDeleteModalVisible(false);
       setRestaurantToDelete(null);
+      closeAllModals();
     }
   };
 
@@ -642,7 +644,13 @@ const HomeScreen = () => {
             }}
             style={[
               styles.card,
-              { backgroundColor: animatedBg, borderColor: isNew ? (isCustom ? '#888' : '#22c55e') : '#000', flexDirection: 'row', alignItems: 'center' },
+              {
+                transform: pressed ? [{ scale: 1.02 }] : [],
+                shadowOffset: pressed ? { width: 0, height: 4 } : { width: 0, height: 10 },
+                shadowOpacity: pressed ? 0.25 : 0.15,
+                elevation: pressed ? 16 : 12,
+              },
+              { flexDirection: 'row', alignItems: 'center' },
             ]}
           >
             {/* Only show logo for Google-matched cards */}
@@ -800,6 +808,7 @@ const HomeScreen = () => {
     } finally {
       setEditSaving(false);
       setTimeout(() => {
+        closeAllModals();
         console.log('DEBUG overlay states after edit:', {
           showLoadingOverlay,
           showSuccessOverlay,
@@ -811,7 +820,7 @@ const HomeScreen = () => {
           deleteModalVisible,
           confirmDeleteVisible,
         });
-      }, 1000); // Wait a second to let state update
+      }, 1000);
     }
   };
 
@@ -821,6 +830,17 @@ const HomeScreen = () => {
     setLoading(true);
     fetchRestaurants();
   }, []);
+
+  // Add this helper function inside HomeScreen
+  function closeAllModals() {
+    setEditModalVisible(false);
+    setDeleteModalVisible(false);
+    setConfirmDeleteVisible(false);
+    setUndoVisible(false);
+    setShowLoadingOverlay(false);
+    setShowSuccessOverlay(false);
+    setShowNoMenuModal(false);
+  }
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -839,6 +859,19 @@ const HomeScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
+        <LinearGradient
+          colors={['#fff', 'rgba(255,255,255,0)']}
+          style={{
+            width: '100%',
+            height: 32,
+            marginTop: -12,
+            marginBottom: 8,
+            zIndex: 2,
+            position: 'absolute',
+            top: 138,
+          }}
+          pointerEvents="none"
+        />
         <View style={styles.searchBarRow}>
           <TouchableOpacity
             style={[
@@ -870,7 +903,6 @@ const HomeScreen = () => {
 
         <ScrollView
           contentContainerStyle={styles.listContainer}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#ff4d4d" />}
         >
           {filteredRestaurants.map((item) => {
             let distance: number | null = null;
@@ -906,10 +938,9 @@ const HomeScreen = () => {
         <View style={styles.bottomBar}>
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
             <TouchableOpacity
-              style={[styles.iconButton, networkError && { opacity: 0.4 }]}
-              onPress={networkError ? undefined : takePhoto}
+              style={styles.iconButton}
+              onPress={takePhoto}
               accessibilityLabel="Add menu photo"
-              disabled={networkError}
             >
               <MaterialCommunityIcons name="peanut" size={40} color="#222" />
             </TouchableOpacity>
@@ -1210,6 +1241,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 150,
     backgroundColor: '#fff',
+    overflow: 'visible',
   },
   titleContainer: {
     alignItems: 'center',
@@ -1237,6 +1269,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
     marginTop: 32,
+    zIndex: 10,
+    position: 'relative',
   },
   searchBar: {
     flex: 1,
@@ -1256,14 +1290,19 @@ const styles = StyleSheet.create({
     paddingBottom: 80,
   },
   card: {
+    width: '100%',
     backgroundColor: '#fff',
-    borderColor: '#000',
-    borderWidth: 2,
     padding: 20,
-    borderRadius: 10,
-    marginTop: 16,
-    marginBottom: 8,
+    borderRadius: 20,
+    marginTop: 20,
+    borderWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 12,
     alignItems: 'center',
+    flexDirection: 'row',
   },
   name: {
     fontSize: 18,
