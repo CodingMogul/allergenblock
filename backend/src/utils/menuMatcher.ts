@@ -1,7 +1,5 @@
 import { calculateStringSimilarity } from "./stringSimilarity";
 
-const SIMILARITY_THRESHOLD = 0.8; // 80% similarity threshold
-
 /**
  * Finds the best matching menu items between two arrays of menu items
  * @param sourceItems - Array of source menu items

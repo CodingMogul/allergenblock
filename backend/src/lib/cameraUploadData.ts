@@ -33,7 +33,7 @@ export async function processCameraImage(
   imageData: string | { path: string }
 ): Promise<{
   restaurantName?: string | null;
-  location?: any | null;
+  location?: unknown | null;
   menuItems: Array<{ name: string; allergens: string[] }> | null;
   source: "camera" | null;
 }> {

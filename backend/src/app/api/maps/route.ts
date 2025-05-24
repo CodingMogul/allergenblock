@@ -1,28 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { calculateStringSimilarity } from "@/utils/stringSimilarity";
-import { findBestMatchingMenu } from "@/utils/menuMatcher";
-import {
-  checkGoogleMapsRestaurant,
-  getNearbyRestaurants,
-} from "@/lib/mapsService";
-import {
-  getGoogleOnlyMatch,
-} from "@/lib/restaurantService";
-import {
-  requestCameraCapture,
-  processImageWithGemini,
-  processCameraImage,
-} from "@/lib/cameraUploadData";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
-
-// Initialize Gemini AI model
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY not found in environment variables");
-}
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+import { getGoogleOnlyMatch } from "@/lib/restaurantService";
 
 /**
  * GET endpoint to retrieve menu data for a specific restaurant and location
@@ -41,11 +18,11 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
  * Example request: /api/maps?restaurantName=Pizza%20Palace&lat=37.7749&lng=-122.4194
  * Example response:
  * {
- *   restaurantName: "Pizza Palace",
- *   location: { lat: 37.7749, lng: -122.4194 },
- *   menuItems: [
- *     { name: "Margherita Pizza", allergens: ["dairy", "gluten"] }
- *   ]
+ *   restaurantName: "Pizza Palace",
+ *   location: { lat: 37.7749, lng: -122.4194 },
+ *   menuItems: [
+ *     { name: "Margherita Pizza", allergens: ["dairy", "gluten"] }
+ *   ]
  * }
  */
 export async function GET(req: NextRequest) {

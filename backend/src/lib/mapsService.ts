@@ -10,7 +10,7 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
  */
 export async function getNearbyRestaurants(
   location: { lat: number; lng: number }
-): Promise<Array<{ name: string; location: { lat: number; lng: number }; menuData?: any }>> {
+): Promise<Array<{ name: string; location: { lat: number; lng: number }; menuData?: unknown }>> {
   try {
     // 1. First get nearby restaurants from Google Maps
     const baseUrl = "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
@@ -36,7 +36,7 @@ export async function getNearbyRestaurants(
     // const dbRestaurants = await db.collection("restaurants").find({}).toArray();
 
     // 3. Match Google Maps results with our database
-    return data.results.map((place: any) => {
+    return data.results.map((place: { name: string; geometry: { location: { lat: number; lng: number } } }) => {
       const googleRestaurant = {
         name: place.name,
         location: {
@@ -144,10 +144,6 @@ export async function checkGoogleMapsRestaurant(
         }
       }
       if (bestMatch) {
-        const distValue = bestDist ?? 0;
-        const willOverwrite = bestMatch.name !== restaurantName || distValue > 0;
-        // Remove or comment out all GoogleMatch logs except errors
-        // console.log(`[GoogleMatch] ✅ MATCH: '${bestMatch.name}' (similarity: ${bestSimilarity}, distance: ${distValue}m). Overwrite: ${willOverwrite ? 'YES' : 'NO'}`);
         return {
           found: true,
           googlePlace: {

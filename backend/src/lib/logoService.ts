@@ -15,9 +15,11 @@ export async function fetchLogoUrl(name: string): Promise<string | null> {
       console.error('logo.dev API error:', res.status, res.statusText);
       return null;
     }
-    const data: any = await res.json();
-    // The new API returns an array of logo objects
-    return data[0]?.logo_url || null;
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0 && typeof data[0].logo_url === 'string') {
+      return data[0].logo_url;
+    }
+    return null;
   } catch (err) {
     console.error('Error fetching logo from logo.dev:', err);
     return null;

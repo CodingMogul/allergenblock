@@ -3,10 +3,10 @@ import { processCameraImage } from '../../../lib/cameraUploadData';
 
 export async function POST(req: NextRequest) {
   try {
-    const { image, restaurantName, location } = await req.json(); // image is the base64 string
+    const { image } = await req.json(); // Only use 'image' since others are unused
 
     // Helper to check if all top-level fields are null
-    function isAllNull(obj: any) {
+    function isAllNull(obj: unknown) {
       if (!obj || typeof obj !== 'object') return false;
       return Object.values(obj).every(v => v === null);
     }
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     // No MongoDB storage, just return Gemini result
     return NextResponse.json({ success: true, gemini: !!result.menuItems, data: result });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
   }
 } 

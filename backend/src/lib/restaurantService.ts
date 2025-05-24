@@ -1,7 +1,4 @@
 import { checkGoogleMapsRestaurant } from "./mapsService";
-import { calculateStringSimilarity, calculateDistance } from "../utils/stringSimilarity";
-import { findBestMatchingMenu } from "../utils/menuMatcher";
-import { RESTAURANT_SIMILARITY_THRESHOLD, RESTAURANT_DISTANCE_THRESHOLD } from "@/utils/constants";
 import { fetchLogoUrl } from './logoService';
 
 // Generic interface for menu data from any source
@@ -15,11 +12,7 @@ interface MenuData {
 /**
  * Gets menu data for a restaurant
  */
-export async function getMenuContext(
-  restaurantName: string,
-  location: { lat: number; lng: number },
-  restaurantId?: string
-) {
+export async function getMenuContext() {
   // MongoDB removed: always return null
   return null;
 }
@@ -34,9 +27,8 @@ export async function storeRestaurantWithMenu(
     // Check Google Maps for restaurant match
     const googleMatch = await checkGoogleMapsRestaurant(menuData.restaurantName, menuData.location);
     // Fetch logo if Google match is found
-    let brandLogo: string | null = null;
     if (googleMatch.found && googleMatch.googlePlace && googleMatch.googlePlace.name) {
-      brandLogo = await fetchLogoUrl(googleMatch.googlePlace.name);
+      await fetchLogoUrl(googleMatch.googlePlace.name);
     }
     // MongoDB removed: just log and return true
     console.log('Simulated storing restaurant data:', menuData.restaurantName);
@@ -49,14 +41,9 @@ export async function storeRestaurantWithMenu(
 
 /**
  * Retrieves restaurant information from the database
- * @param restaurantName - Name of the restaurant
- * @param location - Location coordinates
  * @returns Restaurant information or null if not found
  */
-export async function getRestaurantInfo(
-  restaurantName: string,
-  location: {lat: number, lng: number}
-) {
+export async function getRestaurantInfo() {
   // MongoDB removed: always return null
   return null;
 }
