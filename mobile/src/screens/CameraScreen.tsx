@@ -85,17 +85,22 @@ const CameraScreen = () => {
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <Image source={{ uri: reviewUri }} style={StyleSheet.absoluteFill} resizeMode="contain" />
         {/* Square guide overlay */}
-        <View style={styles.centerBoxContainer} pointerEvents="none">
-          <View style={styles.centerBox}>
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
-            <View style={[styles.corner, styles.cornerBR]} />
+        {scanMode !== 'gallery' && (
+          <View style={styles.centerBoxContainer} pointerEvents="none">
+            <View style={styles.centerBox}>
+              <View style={[styles.corner, styles.cornerTL]} />
+              <View style={[styles.corner, styles.cornerTR]} />
+              <View style={[styles.corner, styles.cornerBL]} />
+              <View style={[styles.corner, styles.cornerBR]} />
+            </View>
           </View>
-        </View>
+        )}
         {/* Action buttons */}
         <View style={{ position: 'absolute', bottom: 48, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', zIndex: 10 }}>
-          <TouchableOpacity style={styles.actionButton} onPress={() => setReviewUri(null)}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => {
+            setReviewUri(null);
+            setScanMode('scan');
+          }}>
             <Text style={{ color: '#fff', fontSize: 18 }}>{scanMode === 'scan' ? 'Retry' : 'Cancel'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Home', { photoUri: reviewUri })}>
@@ -123,15 +128,17 @@ const CameraScreen = () => {
         <Feather name="x" size={28} color="#222" />
       </TouchableOpacity>
       {/* White transparent box with corners */}
-      <View style={styles.centerBoxContainer} pointerEvents="none">
-        <View style={styles.centerBox}>
-          {/* Corners */}
-          <View style={[styles.corner, styles.cornerTL]} />
-          <View style={[styles.corner, styles.cornerTR]} />
-          <View style={[styles.corner, styles.cornerBL]} />
-          <View style={[styles.corner, styles.cornerBR]} />
+      {scanMode !== 'gallery' && (
+        <View style={styles.centerBoxContainer} pointerEvents="none">
+          <View style={styles.centerBox}>
+            {/* Corners */}
+            <View style={[styles.corner, styles.cornerTL]} />
+            <View style={[styles.corner, styles.cornerTR]} />
+            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, styles.cornerBR]} />
+          </View>
         </View>
-      </View>
+      )}
       {/* Mode buttons row above shutter */}
       <View style={styles.modeButtonsRow}>
         <TouchableOpacity

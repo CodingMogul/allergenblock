@@ -1,5 +1,5 @@
 // ✅ HomeScreen.tsx
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,10 @@ import {
   InteractionManager,
   Keyboard,
   TouchableWithoutFeedback,
+  Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -43,6 +47,7 @@ import uuid from 'react-native-uuid';
 import type { MenuItem, Restaurant } from '../restaurantData';
 import { Accelerometer } from 'expo-sensors';
 import { LinearGradient } from 'expo-linear-gradient';
+import type { TextInput as RNTextInput } from 'react-native';
 
 type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
 
@@ -206,8 +211,13 @@ const HomeScreen = () => {
   const accelerometerSubscription = useRef<any>(null);
   const lastShake = useRef<number>(0);
   const [cautionModalVisible, setCautionModalVisible] = useState(false);
+  const [searchBarVisible, setSearchBarVisible] = useState(false);
+  const [debouncedSearchText, setDebouncedSearchText] = useState(searchText);
+  // Ensure searchInputRef is defined for the search bar
+  const searchInputRef = useRef<RNTextInput | null>(null);
 
   const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+  const { width } = Dimensions.get('window');
 
   // Fetch restaurants function (moved outside useEffect for reuse)
   const fetchRestaurants = async () => {
@@ -278,12 +288,12 @@ const HomeScreen = () => {
   const filteredRestaurants: RestaurantWithDistance[] = useMemo(() => {
     let list: RestaurantWithDistance[] = restaurants.filter(r => !(r as any).hidden);
     let bestHiddenMatch: RestaurantWithDistance | null = null;
-    if (searchText.trim()) {
+    if (debouncedSearchText.trim()) {
       // Find the best matching hidden restaurant
       const hiddenRestaurants = restaurants.filter(r => (r as any).hidden);
       let bestScore = -1;
       hiddenRestaurants.forEach(r => {
-        const similarity = getSimilarity(r.restaurantName, searchText);
+        const similarity = getSimilarity(r.restaurantName, debouncedSearchText);
         if (similarity > bestScore) {
           bestScore = similarity;
           bestHiddenMatch = { ...r, similarity };
@@ -294,11 +304,11 @@ const HomeScreen = () => {
         list = [bestHiddenMatch, ...list.filter(r => r.id !== bestHiddenMatch!.id)];
       }
       // Reorder by similarity, do not filter out
-      const search = searchText.trim().toLowerCase();
+      const search = debouncedSearchText.trim().toLowerCase();
       list = [...list]
         .map(r => ({
           ...r,
-          similarity: getSimilarity(r.restaurantName, searchText)
+          similarity: getSimilarity(r.restaurantName, search)
         }))
         .sort((a, b) => b.similarity - a.similarity);
     } else if (locationFilter) {
@@ -318,7 +328,7 @@ const HomeScreen = () => {
         .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }
     return list;
-  }, [restaurants, searchText, locationFilter]);
+  }, [restaurants, debouncedSearchText, locationFilter]);
 
   const uploadMenuImage = async (base64: string, restaurantName: string, location: { lat: number; lng: number }) => {
     try {
@@ -549,6 +559,16 @@ const HomeScreen = () => {
       setDeleteModalVisible(false);
       setRestaurantToDelete(null);
       closeAllModals();
+      setTimeout(() => {
+        setDeleteModalVisible(false);
+        setConfirmDeleteVisible(false);
+        setUndoVisible(false);
+        setShowLoadingOverlay(false);
+        setShowSuccessOverlay(false);
+        setShowNoMenuModal(false);
+        setEditModalVisible(false);
+        setCautionModalVisible(false);
+      }, 100);
     }
   };
 
@@ -559,6 +579,16 @@ const HomeScreen = () => {
       await fetchRestaurants();
       setLastDeletedRestaurant(null);
       setUndoVisible(false);
+      setTimeout(() => {
+        setDeleteModalVisible(false);
+        setConfirmDeleteVisible(false);
+        setUndoVisible(false);
+        setShowLoadingOverlay(false);
+        setShowSuccessOverlay(false);
+        setShowNoMenuModal(false);
+        setEditModalVisible(false);
+        setCautionModalVisible(false);
+      }, 100);
     }
   };
 
@@ -616,7 +646,7 @@ const HomeScreen = () => {
           outputRange: isCustom ? ['#fff', '#e5e5e5'] : ['#fff', '#22c55e'],
         })
       : pressed
-        ? '#e5e5e5'
+        ? '#f0f0f0'
         : '#fff';
     const textColor = isNew
       ? cardAnim.interpolate({ inputRange: [0, 1], outputRange: ['#000', isCustom ? '#000' : '#fff'] })
@@ -645,24 +675,28 @@ const HomeScreen = () => {
             style={[
               styles.card,
               {
-                transform: pressed ? [{ scale: 1.02 }] : [],
+                backgroundColor: pressed ? '#f0f0f0' : '#fff',
+                transform: pressed ? [{ scale: 1.04 }] : [],
                 shadowOffset: pressed ? { width: 0, height: 4 } : { width: 0, height: 10 },
                 shadowOpacity: pressed ? 0.25 : 0.15,
                 elevation: pressed ? 16 : 12,
+                minHeight: 120,
+                paddingVertical: 28,
+                paddingHorizontal: 32,
               },
               { flexDirection: 'row', alignItems: 'center' },
             ]}
           >
             {/* Only show logo for Google-matched cards */}
             {item.apimatch === 'google' && item.brandLogo ? (
-              <Image source={{ uri: item.brandLogo }} style={{ width: 28, height: 28, marginRight: 0 }} resizeMode="contain" />
+              <Image source={{ uri: item.brandLogo }} style={{ width: 36, height: 36, marginRight: 0 }} resizeMode="contain" />
             ) : (
-              <View style={{ width: 28, height: 28, marginRight: 0 }} />
+              <View style={{ width: 36, height: 36, marginRight: 0 }} />
             )}
-            <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', marginLeft: 50 }}>
+            <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', marginLeft: 60 }}>
               <Animated.Text style={[
                 styles.name,
-                { color: textColor, textAlign: 'left', alignSelf: 'flex-start' }
+                { color: textColor, textAlign: 'left', alignSelf: 'flex-start', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 26 }
               ]}>
                 {getDisplayName(item)}
               </Animated.Text>
@@ -842,69 +876,71 @@ const HomeScreen = () => {
     setShowNoMenuModal(false);
   }
 
+  // Memoized ListHeaderComponent for FlatList (like MenuScreen)
+  const listHeader = useMemo(() => (
+    <>
+      <View style={{ alignItems: 'center', marginBottom: 8, marginTop: 150 }}>
+        <TouchableOpacity onPress={() => setCautionModalVisible(true)}>
+          <Text style={styles.title}>
+            <Text style={[styles.epi, cautionModalVisible && { color: '#DA291C' }]}>Epi</Text>
+            <Text style={[styles.eats, cautionModalVisible && { color: '#DA291C' }]}>Eats</Text>
+          </Text>
+        </TouchableOpacity>
+        <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center', marginTop: 32, marginBottom: 40, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3, backgroundColor: 'transparent', zIndex: 100 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 28, width: '100%', height: 56, paddingHorizontal: 20 }}>
+            <TextInput
+              ref={ref => {
+                searchInputRef.current = ref;
+                if (ref) console.log('[DEBUG] searchInputRef set', ref);
+              }}
+              style={{ flex: 1, fontSize: 18, fontFamily: 'ReadexPro-Regular', color: '#222', backgroundColor: 'transparent' }}
+              placeholder="Search restaurants"
+              placeholderTextColor="#999"
+              value={searchText}
+              onChangeText={text => {
+                console.log('[DEBUG] onChangeText', text);
+                setSearchText(text);
+              }}
+              returnKeyType="search"
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText('')}>
+                <Feather name="x-circle" size={24} color="#bbb" />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={async () => {
+                if (locationFilter) {
+                  setLocationFilter(null);
+                } else {
+                  await handleLocationPress();
+                }
+              }}
+              style={{ marginLeft: 12, borderRadius: 22, width: 44, height: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}
+            >
+              <Feather name="map-pin" size={30} color={locationFilter ? '#DA291C' : '#000'} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </>
+  ), [setCautionModalVisible, setSearchBarVisible, setLocationFilter, locationFilter, searchBarVisible, searchText]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchText(searchText);
+    }, 120); // 120ms debounce
+    return () => clearTimeout(handler);
+  }, [searchText]);
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <GestureHandlerRootView style={styles.container}>
         {/* Overlays should be rendered last so they are above all content */}
         {/* Main content */}
-        {/* Profile button in top left */}
-        <TouchableOpacity style={styles.profileButtonLeft} onPress={goToProfileSetup} accessibilityLabel="Profile">
-          <Feather name="user" size={30} color="#222" />
-        </TouchableOpacity>
-        <View style={styles.titleContainer}>
-          <TouchableOpacity onPress={() => setCautionModalVisible(true)}>
-            <Text style={styles.title}>
-              <Text style={styles.epi}>Epi</Text>
-              <Text style={styles.eats}>Eats</Text>
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <LinearGradient
-          colors={['#fff', 'rgba(255,255,255,0)']}
-          style={{
-            width: '100%',
-            height: 32,
-            marginTop: -12,
-            marginBottom: 8,
-            zIndex: 2,
-            position: 'absolute',
-            top: 138,
-          }}
-          pointerEvents="none"
-        />
-        <View style={styles.searchBarRow}>
-          <TouchableOpacity
-            style={[
-              styles.locationButton,
-              locationFilter ? styles.locationButtonActive : null
-            ]}
-            onPress={async () => {
-              if (locationFilter) {
-                setLocationFilter(null);
-              } else {
-                await handleLocationPress();
-              }
-            }}
-          >
-            <Feather
-              name="map-pin"
-              size={24}
-              color={locationFilter ? '#fff' : '#000'}
-            />
-          </TouchableOpacity>
-          <TextInput
-            placeholder="Search restaurants"
-            style={styles.searchBar}
-            placeholderTextColor="#999"
-            value={searchText}
-            onChangeText={setSearchText}
-          />
-        </View>
-
-        <ScrollView
-          contentContainerStyle={styles.listContainer}
-        >
-          {filteredRestaurants.map((item) => {
+        <FlatList
+          data={filteredRestaurants}
+          renderItem={({ item }) => {
             let distance: number | null = null;
             const lat = item.location?.coordinates?.[1] ?? 0;
             const lng = item.location?.coordinates?.[0] ?? 0;
@@ -929,11 +965,12 @@ const HomeScreen = () => {
                 handleLongPress={handleLongPress}
               />
             );
-          })}
-          {loading && (
-            <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text>
-          )}
-        </ScrollView>
+          }}
+          keyExtractor={item => item.id + '-' + (item.apimatch || 'custom')}
+          contentContainerStyle={[styles.listContainer, { paddingHorizontal: 20 }]}
+          ListHeaderComponent={listHeader}
+          ListFooterComponent={loading ? () => <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text> : null}
+        />
 
         <View style={styles.bottomBar}>
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
@@ -1212,22 +1249,26 @@ const HomeScreen = () => {
           <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
             <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 32, width: '85%', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }}>
-              <Feather name="alert-triangle" size={48} color="#FFD600" style={{ marginBottom: 18 }} />
-              <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFD600', marginBottom: 12 }}>Disclaimer</Text>
+              <Feather name="alert-triangle" size={48} color="#DA291C" style={{ marginBottom: 18 }} />
+              <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#DA291C', marginBottom: 12 }}>Disclaimer</Text>
               <Text style={{ fontSize: 16, color: '#222', textAlign: 'center', marginBottom: 18 }}>
                 This app is for informational purposes only and does not replace professional medical advice. Always confirm allergen information with restaurant staff or your physician. The creators of this app are not liable for any allergic reactions or health issues.
               </Text>
               <TouchableOpacity
-                style={{ backgroundColor: '#FFD600', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 32, marginTop: 8 }}
+                style={{ backgroundColor: '#DA291C', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 32, marginTop: 8 }}
                 onPress={() => setCautionModalVisible(false)}
               >
-                <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 16 }}>Understood!</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Understood!</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
 
-        {/* Help button in the top right */}
+        {/* Floating profile button in top left */}
+        <TouchableOpacity style={styles.profileButtonLeft} onPress={goToProfileSetup} accessibilityLabel="Profile">
+          <Feather name="user" size={30} color="#222" />
+        </TouchableOpacity>
+        {/* Floating help button in top right */}
         <TouchableOpacity style={styles.helpButtonRight} onPress={() => navigation.navigate('InstructionPage', { fromHelp: true })} accessibilityLabel="Help">
           <Feather name="help-circle" size={30} color="#222" />
         </TouchableOpacity>
@@ -1239,7 +1280,6 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 150,
     backgroundColor: '#fff',
     overflow: 'visible',
   },
@@ -1291,22 +1331,26 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
+    marginBottom: 28,
+    paddingVertical: 28,
+    paddingHorizontal: 32,
+    borderRadius: 24,
     backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 20,
-    marginTop: 20,
-    borderWidth: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.15,
-    shadowRadius: 20,
+    shadowRadius: 24,
     elevation: 12,
+    justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'visible',
     flexDirection: 'row',
   },
   name: {
-    fontSize: 18,
+    fontSize: 26,
     fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 0,
     fontFamily: 'ReadexPro-Bold',
   },
   bottomBar: {
@@ -1358,23 +1402,31 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 80,
     left: 24,
-    zIndex: 11,
+    zIndex: 20,
     width: 36,
     height: 36,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   helpButtonRight: {
     position: 'absolute',
     top: 80,
     right: 24,
-    zIndex: 10,
+    zIndex: 20,
     width: 36,
     height: 36,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   userNameContainer: {
     position: 'absolute',
