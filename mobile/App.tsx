@@ -12,6 +12,8 @@ import InstructionPage from './src/screens/InstructionPage';
 import ProfileSetup from './src/screens/ProfileSetup';
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import CameraScreen from './src/screens/CameraScreen';
+import OnboardingCarouselDemo from './src/screens/OnboardingCarouselDemo';
+import OnboardingScanDemo from './src/screens/OnboardingScanDemo';
 import { UserProfileProvider } from './src/context/UserProfileContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -57,12 +59,13 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* Debug button: remove after onboarding work is done */}
+      {/*
       {__DEV__ && (
         <View style={{ position: 'absolute', top: 40, left: 0, right: 0, zIndex: 9999, alignItems: 'center' }}>
           <Button title="Clear AsyncStorage" color="#DA291C" onPress={clearAsyncStorage} />
         </View>
       )}
+      */}
       <UserProfileProvider>
         <NavigationContainer>
           <Stack.Navigator initialRouteName={initialRoute as any} screenOptions={{ headerShown: false }}>
@@ -75,6 +78,8 @@ export default function App() {
             <Stack.Screen name="ProfileSetup" component={ProfileSetup} />
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="Camera" component={CameraScreen} />
+            <Stack.Screen name="OnboardingCarouselDemo" component={OnboardingCarouselDemo} />
+            <Stack.Screen name="OnboardingScanDemo" component={OnboardingScanDemo} />
           </Stack.Navigator>
         </NavigationContainer>
       </UserProfileProvider>

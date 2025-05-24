@@ -284,7 +284,6 @@ const HomeScreen = () => {
     });
   };
 
-  // Filter out hidden restaurants, but allow the best matching hidden restaurant to appear at the top if searching
   const filteredRestaurants: RestaurantWithDistance[] = useMemo(() => {
     let list: RestaurantWithDistance[] = restaurants.filter(r => !(r as any).hidden);
     let bestHiddenMatch: RestaurantWithDistance | null = null;
@@ -312,7 +311,7 @@ const HomeScreen = () => {
         }))
         .sort((a, b) => b.similarity - a.similarity);
     } else if (locationFilter) {
-      // If location filter is active, sort by distance
+      // If location filter is active, sort by distance and filter to 100 meters
       list = list
         .map(r => {
           const lat = r.location?.coordinates?.[1] ?? 0;
@@ -325,6 +324,7 @@ const HomeScreen = () => {
           }
           return { ...r, distance: Infinity };
         })
+        .filter(r => (r.distance ?? Infinity) <= 0.1) // 0.1 km = 100 meters
         .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }
     return list;
@@ -365,8 +365,11 @@ const HomeScreen = () => {
           googlePlace = googleResult.googlePlace;
           apimatch = 'google';
         }
-        // 2. logo.dev for logo (always use verifiedName)
-        const brandLogo = await fetchLogoDevUrl(verifiedName, verifiedName);
+        // 2. logo.dev for logo (only if apimatch is 'google')
+        let brandLogo = '';
+        if (apimatch === 'google') {
+          brandLogo = await fetchLogoDevUrl(verifiedName, verifiedName) || '';
+        }
         // 3. Save to AsyncStorage with all info
         const newRestaurant = {
           id: uuid.v4(),
@@ -800,8 +803,11 @@ const HomeScreen = () => {
       googlePlace = googleResult.googlePlace;
       apimatch = 'google';
     }
-    // 3. logo.dev for logo (always use verifiedName)
-    const brandLogo = await fetchLogoDevUrl(verifiedName, verifiedName);
+    // 3. logo.dev for logo (only if apimatch is 'google')
+    let brandLogo = '';
+    if (apimatch === 'google') {
+      brandLogo = await fetchLogoDevUrl(verifiedName, verifiedName) || '';
+    }
 
     // Debug logging before saving
     console.log('[Edit Debug] googleResult:', googleResult);
@@ -1276,6 +1282,19 @@ const HomeScreen = () => {
         <TouchableOpacity style={styles.helpButtonRight} onPress={() => navigation.navigate('InstructionPage', { fromHelp: true })} accessibilityLabel="Help">
           <Feather name="help-circle" size={30} color="#222" />
         </TouchableOpacity>
+
+        {/* Clear AsyncStorage button for onboarding dev */}
+        {__DEV__ && (
+          <TouchableOpacity
+            style={{ position: 'absolute', bottom: 110, right: 24, backgroundColor: '#ffeaea', borderRadius: 8, padding: 12, zIndex: 100 }}
+            onPress={async () => {
+              await AsyncStorage.clear();
+              Alert.alert('AsyncStorage cleared');
+            }}
+          >
+            <Text style={{ color: '#DA291C', fontWeight: 'bold' }}>Clear AsyncStorage</Text>
+          </TouchableOpacity>
+        )}
       </GestureHandlerRootView>
     </TouchableWithoutFeedback>
   );

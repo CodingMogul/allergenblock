@@ -38,7 +38,9 @@
     "react-native-snap-carousel": "^3.9.1",
     "react-native-svg": "15.11.2",
     "react-native-uuid": "^2.0.3",
-    "react-native-web": "^0.20.0"
+    "react-native-web": "^0.20.0",
+    "expo-av": "~15.1.4",
+    "expo-video": "~2.1.9"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

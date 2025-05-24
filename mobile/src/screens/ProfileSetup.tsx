@@ -93,8 +93,10 @@ export default function ProfileSetup() {
       if (canGoBack) {
         setShowSaved(true);
         setTimeout(() => setShowSaved(false), 3000);
+      } else if (route.params?.fromOnboarding) {
+        navigation.navigate('OnboardingScanDemo');
       } else {
-        navigation.navigate('Welcome');
+        navigation.navigate('Home');
       }
     } catch (error) {
       Alert.alert(
@@ -212,13 +214,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontFamily: 'ReadexPro-Bold',
-    marginBottom: 15,
+    marginBottom: 35,
     textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 20,
     fontFamily: 'ReadexPro-Bold',
-    marginBottom: 25,
+    marginBottom: 15,
   },
   carouselCard: {
     width: CARD_WIDTH,

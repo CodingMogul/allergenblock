@@ -19,8 +19,10 @@ export default function InstructionPage() {
   const handleContinue = () => {
     if ((route as any).params?.fromHelp) {
       navigation.navigate('Home');
+    } else if ((route as any).params?.fromOnboarding) {
+      navigation.navigate('ProfileSetup', { fromOnboarding: true });
     } else {
-      navigation.navigate('ProfileSetup');
+      navigation.navigate('Home');
     }
   };
 
