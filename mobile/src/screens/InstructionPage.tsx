@@ -122,7 +122,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 42,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
     color: '#DA291C',
     marginTop: 100,
     marginBottom: 60,
@@ -136,14 +136,14 @@ const styles = StyleSheet.create({
   },
   step: {
     fontSize: 24,
-    fontFamily: 'Urbanist-Regular',
+    fontFamily: 'ReadexPro-Regular',
     color: '#222',
     textAlign: 'center',
     marginBottom: 50,
     lineHeight: 32,
   },
   bold: {
-    fontFamily: 'Urbanist-Black',
+    fontFamily: 'ReadexPro-Bold',
     fontWeight: '900',
   },
   lastStep: {
@@ -166,6 +166,6 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 20,
     fontWeight: 'bold',
-    fontFamily: 'Inter',
+    fontFamily: 'ReadexPro-Bold',
   },
 }); 

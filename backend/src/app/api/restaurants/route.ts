@@ -5,32 +5,7 @@ import { checkGoogleMapsRestaurant } from '@/lib/mapsService';
 import { fetchLogoUrl } from '@/lib/logoService';
 
 export async function GET() {
-  try {
-    const { db } = await connectToDatabase();
-    const restaurants = await db.collection('restaurants')
-      .find({})
-      .project({ _id: 1, restaurantName: 1, location: 1, hidden: 1, apimatch: 1, brandLogo: 1, googlePlace: 1 })
-      .toArray();
-
-    const formattedRestaurants = restaurants.map(restaurant => ({
-      id: restaurant._id.toString(),
-      name: restaurant.restaurantName,
-      displayName: restaurant.googlePlace?.name || restaurant.restaurantName,
-      latitude: restaurant.location?.coordinates?.[1],
-      longitude: restaurant.location?.coordinates?.[0],
-      hidden: restaurant.hidden || false,
-      apimatch: restaurant.apimatch || 'none',
-      brandLogo: restaurant.brandLogo ?? null,
-    }));
-
-    return NextResponse.json(formattedRestaurants);
-  } catch (error) {
-    console.error('Error fetching restaurants:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch restaurants' },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ error: 'Not implemented: MongoDB removed' }, { status: 501 });
 }
 
 export async function PATCH(request: Request) {

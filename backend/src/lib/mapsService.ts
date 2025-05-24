@@ -1,6 +1,5 @@
 // lib/mapsService.ts
 
-import { connectToDatabase } from "./mongodb";
 import { calculateStringSimilarity, calculateDistance } from "@/utils/stringSimilarity";
 import { RESTAURANT_SIMILARITY_THRESHOLD, RESTAURANT_DISTANCE_THRESHOLD } from "@/utils/constants";
 
@@ -33,8 +32,8 @@ export async function getNearbyRestaurants(
     }
 
     // 2. Get our database restaurants
-    const { db } = await connectToDatabase();
-    const dbRestaurants = await db.collection("restaurants").find({}).toArray();
+    // const { db } = await connectToDatabase();
+    // const dbRestaurants = await db.collection("restaurants").find({}).toArray();
 
     // 3. Match Google Maps results with our database
     return data.results.map((place: any) => {
@@ -47,19 +46,19 @@ export async function getNearbyRestaurants(
       };
 
       // Find matching restaurant in our database
-      const matchingDbRestaurant = dbRestaurants.find(dbRest => {
-        const nameSimilarity = calculateStringSimilarity(dbRest.restaurantName, place.name);
-        const distance = calculateDistance(
-          { lat: dbRest.location.coordinates[1], lng: dbRest.location.coordinates[0] },
-          googleRestaurant.location
-        );
-        
-        return nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD && distance <= RESTAURANT_DISTANCE_THRESHOLD;
-      });
+      // const matchingDbRestaurant = dbRestaurants.find(dbRest => {
+      //   const nameSimilarity = calculateStringSimilarity(dbRest.restaurantName, place.name);
+      //   const distance = calculateDistance(
+      //     { lat: dbRest.location.coordinates[1], lng: dbRest.location.coordinates[0] },
+      //     googleRestaurant.location
+      //   );
+      //   
+      //   return nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD && distance <= RESTAURANT_DISTANCE_THRESHOLD;
+      // });
 
       return {
         ...googleRestaurant,
-        menuData: matchingDbRestaurant || null
+        menuData: null // matchingDbRestaurant || null
       };
     });
   } catch (error) {

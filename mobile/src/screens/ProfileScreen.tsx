@@ -54,13 +54,13 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 32,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
     color: '#222',
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 20,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
     color: '#666',
     marginBottom: 16,
   },
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   },
   allergenItem: {
     fontSize: 18,
-    fontFamily: 'Inter',
+    fontFamily: 'ReadexPro-Regular',
     color: '#222',
     marginBottom: 8,
   },
@@ -82,6 +82,6 @@ const styles = StyleSheet.create({
   editButtonText: {
     color: '#000',
     fontSize: 20,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
   },
 });

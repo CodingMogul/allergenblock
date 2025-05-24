@@ -92,12 +92,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   epi: {
-    fontFamily: 'Inter-Regular',
+    fontFamily: 'ReadexPro-Regular',
     fontWeight: '400',
     color: '#222',
   },
   eats: {
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
     fontWeight: 'bold',
     color: '#DA291C',
   },
@@ -125,6 +125,6 @@ const styles = StyleSheet.create({
     color: '#000',
     fontSize: 20,
     fontWeight: 'bold',
-    fontFamily: 'Inter',
+    fontFamily: 'ReadexPro-Regular',
   },
 });

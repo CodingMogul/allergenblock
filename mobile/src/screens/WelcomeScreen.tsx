@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   },
   welcomeText: {
     fontSize: 32,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
     textAlign: 'center',
   },
   nameText: {

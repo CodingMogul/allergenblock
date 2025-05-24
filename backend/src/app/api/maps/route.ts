@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/mongodb";
 import { calculateStringSimilarity } from "@/utils/stringSimilarity";
 import { findBestMatchingMenu } from "@/utils/menuMatcher";
 import {
@@ -7,8 +6,6 @@ import {
   getNearbyRestaurants,
 } from "@/lib/mapsService";
 import {
-  getMenuContext,
-  storeRestaurantWithMenu,
   getGoogleOnlyMatch,
 } from "@/lib/restaurantService";
 import {

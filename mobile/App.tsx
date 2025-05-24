@@ -15,10 +15,16 @@ import CameraScreen from './src/screens/CameraScreen';
 import { UserProfileProvider } from './src/context/UserProfileContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as Font from 'expo-font';
+import { View, Text } from 'react-native';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+  const [fontsLoaded] = Font.useFonts({
+    'ReadexPro-Regular': require('./assets/fonts/ReadexPro-Regular.ttf'),
+    'ReadexPro-Bold': require('./assets/fonts/ReadexPro-Bold.ttf'),
+  });
   const [initialRoute, setInitialRoute] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -36,6 +42,7 @@ export default function App() {
     })();
   }, []);
 
+  if (!fontsLoaded) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><Text>Loading fonts...</Text></View>;
   if (!initialRoute) return null; // or a splash/loading screen
 
   return (

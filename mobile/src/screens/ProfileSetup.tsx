@@ -215,14 +215,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
     color: '#DA291C',
     marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 18,
-    fontFamily: 'Inter',
+    fontFamily: 'ReadexPro-Regular',
     fontStyle: 'italic',
     color: '#666',
     marginBottom: 32,
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 16,
     fontSize: 22,
-    fontFamily: 'Inter',
+    fontFamily: 'ReadexPro-Regular',
     marginBottom: 8,
   },
   inputError: {
@@ -246,13 +246,13 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#ff3b30',
     fontSize: 12,
-    fontFamily: 'Inter',
+    fontFamily: 'ReadexPro-Regular',
     marginBottom: 16,
     marginLeft: 4,
   },
   sectionTitle: {
     fontSize: 20,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
     color: '#222',
     marginBottom: 16,
   },
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   },
   allergenText: {
     fontSize: 14,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
     color: '#222',
     textAlign: 'center',
   },
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#000',
     fontSize: 20,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Bold',
   },
   homeButton: {
     position: 'absolute',

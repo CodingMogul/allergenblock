@@ -396,6 +396,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 40,
     alignSelf: 'center',
+    fontFamily: 'ReadexPro-Bold',
   },
   scrollView: {
     width: '100%',
@@ -434,13 +435,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     marginBottom: 0,
+    fontFamily: 'ReadexPro-Bold',
   },
   menuItemAllergensCount: {
     fontSize: 12,
-    color: '#ff4d4d', // defined red
+    color: '#ff4d4d',
     marginTop: -20,
     marginBottom: 20,
     textAlign: 'center',
+    fontFamily: 'ReadexPro-Regular',
   },
   allergenListContainer: {
     width: '100%',
@@ -453,6 +456,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#000',
     fontWeight: 'bold',
+    fontFamily: 'ReadexPro-Bold',
   },
   allergenRow: {
     flexDirection: 'row',
@@ -462,6 +466,7 @@ const styles = StyleSheet.create({
   allergenText: {
     color: '#000',
     fontSize: 14,
+    fontFamily: 'ReadexPro-Regular',
   },
   homeButton: {
     position: 'absolute',
@@ -508,6 +513,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 18,
     color: '#222',
+    fontFamily: 'ReadexPro-Bold',
   },
   modalAllergenGrid: {
     flexDirection: 'row',
@@ -554,5 +560,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    fontFamily: 'ReadexPro-Bold',
   },
 });

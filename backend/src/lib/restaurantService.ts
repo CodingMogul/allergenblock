@@ -1,9 +1,7 @@
-import { connectToDatabase } from "./mongodb";
 import { checkGoogleMapsRestaurant } from "./mapsService";
 import { calculateStringSimilarity, calculateDistance } from "../utils/stringSimilarity";
 import { findBestMatchingMenu } from "../utils/menuMatcher";
 import { RESTAURANT_SIMILARITY_THRESHOLD, RESTAURANT_DISTANCE_THRESHOLD } from "@/utils/constants";
-import { ObjectId } from "mongodb";
 import { fetchLogoUrl } from './logoService';
 
 // Generic interface for menu data from any source
@@ -22,8 +20,6 @@ export async function getMenuContext(
   location: { lat: number; lng: number },
   restaurantId?: string
 ) {
-  const db = await connectToDatabase();
-  
   // If restaurantId is provided, try to find the restaurant directly by ID
   if (restaurantId) {
     const restaurant = await db.db.collection("restaurants").findOne({
@@ -66,8 +62,6 @@ export async function storeRestaurantWithMenu(
   menuData: MenuData
 ): Promise<boolean> {
   try {
-    const db = await connectToDatabase();
-    
     // Check Google Maps for restaurant match
     const googleMatch = await checkGoogleMapsRestaurant(menuData.restaurantName, menuData.location);
     
@@ -153,7 +147,6 @@ export async function getRestaurantInfo(
   location: {lat: number, lng: number}
 ) {
   try {
-    const db = await connectToDatabase();
     return db.db.collection("restaurants").findOne({
       restaurantName,
       location: {
