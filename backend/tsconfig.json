@@ -22,6 +22,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/api/getallergen/route.js", "next.config.ts", "menu-testing/run-tests.js"],
+  "include": ["next-env.d.js", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/api/getallergen/route.js", "next.config.ts", "menu-testing/run-tests.js"],
   "exclude": ["node_modules"]
 }
