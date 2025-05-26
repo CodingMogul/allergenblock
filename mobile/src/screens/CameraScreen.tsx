@@ -2,43 +2,54 @@ import React, { useRef, useState, useEffect } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Image } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../types/navigation'; // adjust path if needed
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import { PinchGestureHandler } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, useAnimatedGestureHandler } from 'react-native-reanimated';
-import { CropView } from 'expo-image-cropper';
+import Animated from 'react-native-reanimated';
 
 const CameraScreen = () => {
-  const [camera, setCamera] = useState<any>(null);
+  const cameraRef = useRef<any>(null);
   const [facing, setFacing] = useState<CameraType>('back');
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanMode, setScanMode] = useState<'scan' | 'gallery'>('scan');
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [reviewUri, setReviewUri] = useState<string | null>(null);
+  // Delay flag for CameraView mounting
+  const [camReady, setCamReady] = useState(false);
 
-  const scale = useSharedValue(1);
-  const pinchHandler = useAnimatedGestureHandler({
-    onActive: (event) => {
-      scale.value = event.scale;
-    },
-    onEnd: () => {
-      scale.value = withTiming(1, { duration: 200 });
-    },
-  });
-  const animatedImageStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (permission?.granted) {
+      timeout = setTimeout(() => {
+        setCamReady(true);
+      }, 500); // 500ms delay for stability
+    }
+    return () => clearTimeout(timeout);
+  }, [permission?.granted]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setCamReady(false);
+      return () => {
+        setCamReady(false);
+      };
+    }, [])
+  );
+
+  useEffect(() => {
+    return () => {};
+  }, [route]);
 
   const takePicture = async () => {
-    if (!camera) {
+    if (!cameraRef.current) {
       setCameraError('Camera not ready.');
       return;
     }
     try {
-      const photo = await camera.takePictureAsync();
+      const photo = await cameraRef.current.takePictureAsync();
       setReviewUri(photo.uri);
     } catch (err: any) {
       setCameraError('Failed to take picture: ' + (err?.message || err));
@@ -47,7 +58,14 @@ const CameraScreen = () => {
 
   const pickImageFromGallery = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync();
+      const result = await ImagePicker.launchImageLibraryAsync({
+        quality: 0.7,
+        base64: false,
+        exif: false,
+        allowsEditing: false,
+        aspect: [4, 3],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      });
       if (!result.canceled) {
         setReviewUri(result.assets[0].uri);
       }
@@ -85,20 +103,28 @@ const CameraScreen = () => {
       <View style={{ flex: 1, backgroundColor: '#000' }}>
         <Image source={{ uri: reviewUri }} style={StyleSheet.absoluteFill} resizeMode="contain" />
         {/* Square guide overlay */}
-        <View style={styles.centerBoxContainer} pointerEvents="none">
-          <View style={styles.centerBox}>
-            <View style={[styles.corner, styles.cornerTL]} />
-            <View style={[styles.corner, styles.cornerTR]} />
-            <View style={[styles.corner, styles.cornerBL]} />
-            <View style={[styles.corner, styles.cornerBR]} />
+        {scanMode !== 'gallery' && (
+          <View style={styles.centerBoxContainer} pointerEvents="none">
+            <View style={styles.centerBox}>
+              <View style={[styles.corner, styles.cornerTL]} />
+              <View style={[styles.corner, styles.cornerTR]} />
+              <View style={[styles.corner, styles.cornerBL]} />
+              <View style={[styles.corner, styles.cornerBR]} />
+            </View>
           </View>
-        </View>
+        )}
         {/* Action buttons */}
         <View style={{ position: 'absolute', bottom: 48, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', zIndex: 10 }}>
-          <TouchableOpacity style={styles.actionButton} onPress={() => setReviewUri(null)}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => {
+            setReviewUri(null);
+            setScanMode('scan');
+            setCameraError(null);
+          }}>
             <Text style={{ color: '#fff', fontSize: 18 }}>{scanMode === 'scan' ? 'Retry' : 'Cancel'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Home', { photoUri: reviewUri })}>
+          <TouchableOpacity style={styles.actionButton} onPress={() => {
+            navigation.navigate('Home', { photoUri: reviewUri });
+          }}>
             <Text style={{ color: '#fff', fontSize: 18 }}>Use Photo</Text>
           </TouchableOpacity>
         </View>
@@ -108,30 +134,37 @@ const CameraScreen = () => {
 
   return (
     <View style={{ flex: 1 }}>
-      <CameraView
-        style={StyleSheet.absoluteFill}
-        facing={facing}
-        ref={setCamera}
-        onError={() => setCameraError('Failed to initialize camera.')}
-      />
+      {camReady && (
+        <CameraView
+          key={scanMode}
+          style={StyleSheet.absoluteFill}
+          facing={facing}
+          ref={cameraRef}
+          mute={true}
+        />
+      )}
       {/* X button in top left */}
       <TouchableOpacity
         style={{ position: 'absolute', top: 40, left: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 20, padding: 6 }}
-        onPress={() => navigation.goBack()}
+        onPress={() => {
+          navigation.goBack();
+        }}
         accessibilityLabel="Close camera"
       >
         <Feather name="x" size={28} color="#222" />
       </TouchableOpacity>
       {/* White transparent box with corners */}
-      <View style={styles.centerBoxContainer} pointerEvents="none">
-        <View style={styles.centerBox}>
-          {/* Corners */}
-          <View style={[styles.corner, styles.cornerTL]} />
-          <View style={[styles.corner, styles.cornerTR]} />
-          <View style={[styles.corner, styles.cornerBL]} />
-          <View style={[styles.corner, styles.cornerBR]} />
+      {scanMode !== 'gallery' && (
+        <View style={styles.centerBoxContainer} pointerEvents="none">
+          <View style={styles.centerBox}>
+            {/* Corners */}
+            <View style={[styles.corner, styles.cornerTL]} />
+            <View style={[styles.corner, styles.cornerTR]} />
+            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, styles.cornerBR]} />
+          </View>
         </View>
-      </View>
+      )}
       {/* Mode buttons row above shutter */}
       <View style={styles.modeButtonsRow}>
         <TouchableOpacity
@@ -139,7 +172,9 @@ const CameraScreen = () => {
             styles.smallModeButton,
             scanMode === 'scan' ? styles.smallModeButtonActive : styles.smallModeButtonInactive,
           ]}
-          onPress={() => setScanMode('scan')}
+          onPress={() => {
+            setScanMode('scan');
+          }}
         >
           <MaterialCommunityIcons name="food" size={20} color="#222" />
           <Text style={styles.smallModeButtonText}>Scan Menu</Text>
@@ -149,7 +184,9 @@ const CameraScreen = () => {
             styles.smallModeButton,
             scanMode === 'gallery' ? styles.smallModeButtonActive : styles.smallModeButtonInactive,
           ]}
-          onPress={pickImageFromGallery}
+          onPress={() => {
+            pickImageFromGallery();
+          }}
         >
           <Feather name="image" size={20} color="#222" />
           <Text style={styles.smallModeButtonText}>Gallery</Text>
@@ -160,7 +197,13 @@ const CameraScreen = () => {
         {/* Shutter button */}
         <TouchableOpacity
           style={styles.shutterButton}
-          onPress={scanMode === 'scan' ? takePicture : pickImageFromGallery}
+          onPress={() => {
+            if (scanMode === 'scan') {
+              takePicture();
+            } else {
+              pickImageFromGallery();
+            }
+          }}
           accessibilityLabel="Shutter"
         >
           <View style={styles.shutterCircle} />

@@ -57,10 +57,11 @@ const styles = StyleSheet.create({
   },
   welcomeText: {
     fontSize: 32,
-    fontFamily: 'Inter-Bold',
+    fontFamily: 'ReadexPro-Regular',
     textAlign: 'center',
   },
   nameText: {
     color: '#DA291C',
+    fontFamily: 'ReadexPro-Bold',
   },
 }); 

@@ -60,7 +60,11 @@ export async function editRestaurant(
       finalVerifiedName = googlePlaceResult.name;
       finalApimatch = 'google';
       finalGooglePlace = googlePlaceResult;
-      finalBrandLogo = await fetchLogoDevUrl(googlePlaceResult?.name || newName) || '';
+      if (finalApimatch === 'google') {
+        finalBrandLogo = await fetchLogoDevUrl(googlePlaceResult?.name || newName) || '';
+      } else {
+        finalBrandLogo = '';
+      }
       // Always update location and verifiedLocation to Google-verified location
       if (googlePlaceResult.location) {
         finalLocation = {

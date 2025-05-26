@@ -1,6 +1,5 @@
 // lib/mapsService.ts
 
-import { connectToDatabase } from "./mongodb";
 import { calculateStringSimilarity, calculateDistance } from "@/utils/stringSimilarity";
 import { RESTAURANT_SIMILARITY_THRESHOLD, RESTAURANT_DISTANCE_THRESHOLD } from "@/utils/constants";
 
@@ -11,7 +10,7 @@ const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
  */
 export async function getNearbyRestaurants(
   location: { lat: number; lng: number }
-): Promise<Array<{ name: string; location: { lat: number; lng: number }; menuData?: any }>> {
+): Promise<Array<{ name: string; location: { lat: number; lng: number }; menuData?: unknown }>> {
   try {
     // 1. First get nearby restaurants from Google Maps
     const baseUrl = "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
@@ -33,11 +32,11 @@ export async function getNearbyRestaurants(
     }
 
     // 2. Get our database restaurants
-    const { db } = await connectToDatabase();
-    const dbRestaurants = await db.collection("restaurants").find({}).toArray();
+    // const { db } = await connectToDatabase();
+    // const dbRestaurants = await db.collection("restaurants").find({}).toArray();
 
     // 3. Match Google Maps results with our database
-    return data.results.map((place: any) => {
+    return data.results.map((place: { name: string; geometry: { location: { lat: number; lng: number } } }) => {
       const googleRestaurant = {
         name: place.name,
         location: {
@@ -47,19 +46,19 @@ export async function getNearbyRestaurants(
       };
 
       // Find matching restaurant in our database
-      const matchingDbRestaurant = dbRestaurants.find(dbRest => {
-        const nameSimilarity = calculateStringSimilarity(dbRest.restaurantName, place.name);
-        const distance = calculateDistance(
-          { lat: dbRest.location.coordinates[1], lng: dbRest.location.coordinates[0] },
-          googleRestaurant.location
-        );
-        
-        return nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD && distance <= RESTAURANT_DISTANCE_THRESHOLD;
-      });
+      // const matchingDbRestaurant = dbRestaurants.find(dbRest => {
+      //   const nameSimilarity = calculateStringSimilarity(dbRest.restaurantName, place.name);
+      //   const distance = calculateDistance(
+      //     { lat: dbRest.location.coordinates[1], lng: dbRest.location.coordinates[0] },
+      //     googleRestaurant.location
+      //   );
+      //   
+      //   return nameSimilarity >= RESTAURANT_SIMILARITY_THRESHOLD && distance <= RESTAURANT_DISTANCE_THRESHOLD;
+      // });
 
       return {
         ...googleRestaurant,
-        menuData: matchingDbRestaurant || null
+        menuData: null // matchingDbRestaurant || null
       };
     });
   } catch (error) {
@@ -145,10 +144,6 @@ export async function checkGoogleMapsRestaurant(
         }
       }
       if (bestMatch) {
-        const distValue = bestDist ?? 0;
-        const willOverwrite = bestMatch.name !== restaurantName || distValue > 0;
-        // Remove or comment out all GoogleMatch logs except errors
-        // console.log(`[GoogleMatch] ✅ MATCH: '${bestMatch.name}' (similarity: ${bestSimilarity}, distance: ${distValue}m). Overwrite: ${willOverwrite ? 'YES' : 'NO'}`);
         return {
           found: true,
           googlePlace: {
