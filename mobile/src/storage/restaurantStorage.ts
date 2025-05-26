@@ -91,7 +91,6 @@ export async function editRestaurant(
           lng: locationOverride.lng,
         };
       }
-      console.warn('[Edit Debug] WARNING: Google API returned no match during edit fallback logic. Saving as custom.');
     }
   } else {
     finalLocation = {
@@ -109,23 +108,4 @@ export async function editRestaurant(
     location: finalLocation,
   };
   await saveRestaurants(restaurants);
-  // Log when a restaurant goes from google match to custom
-  if (restaurant.apimatch === 'google' && finalApimatch !== 'google') {
-    console.log('[Debug] Restaurant changed from Google match to custom:', {
-      id,
-      oldName: restaurant.verifiedName || restaurant.restaurantName,
-      newName,
-      oldApimatch: restaurant.apimatch,
-      newApimatch: finalApimatch,
-    });
-  }
-  // Log when a restaurant is verified by Google by name and location
-  if (finalApimatch === 'google' && finalGooglePlace) {
-    console.log('[Debug] Restaurant is Google verified by name and location:', {
-      id,
-      name: finalVerifiedName,
-      location: finalLocation,
-      googlePlace: finalGooglePlace,
-    });
-  }
 } 

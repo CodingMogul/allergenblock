@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,9 @@ import {
   Keyboard,
   TextInput as RNTextInput,
   TouchableWithoutFeedback,
+  Animated as RNAnimated,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import {
   TapGestureHandler,
   GestureHandlerRootView,
@@ -22,7 +24,7 @@ import {
   GestureEvent,
   PanGestureHandler,
 } from 'react-native-gesture-handler';
-import Animated, {
+import {
   useSharedValue,
   withSpring,
   useAnimatedStyle,
@@ -58,6 +60,7 @@ import Bread from '../../assets/icons/Bread.svg';
 import Beans from '../../assets/icons/Beans.svg';
 import Sesame from '../../assets/icons/Sesame.svg';
 import Carousel from 'react-native-reanimated-carousel';
+import { Asset } from 'expo-asset';
 
 const { width } = Dimensions.get('window');
 
@@ -76,15 +79,6 @@ const ALLERGENS: { id: AllergenId; name: string; emoji: string }[] = [
   { id: 'soy', name: 'Soy', emoji: '🫘' },
   { id: 'sesame', name: 'Sesame', emoji: '✨' },
 ];
-
-function normalizeMenuItems(rawMenuItems: any[]): MenuItem[] {
-  return rawMenuItems.map((item, idx) => ({
-    id: item.id || idx.toString(),
-    name: item.name,
-    allergens: item.allergens || [],
-    certainty: item.certainty,
-  }));
-}
 
 function getDisplayName(restaurant: any) {
   return (
@@ -140,6 +134,20 @@ const allergenIcons: Record<string, React.FC<any>> = {
 const MODAL_CARD_WIDTH = 120;
 const MODAL_CARD_HEIGHT = 140;
 
+// Helper to get dynamic font size for the menu title
+function getDynamicHeaderFontSize(title: string) {
+  const baseFontSize = 30;
+  const minFontSize = 18;
+  // Estimate width: each char ~0.6em, so max chars for width
+  const maxWidth = width - 60; // account for padding
+  const estWidth = title.length * baseFontSize * 0.6;
+  if (estWidth > maxWidth) {
+    // Reduce font size proportionally, but not below minFontSize
+    return Math.max(minFontSize, Math.floor(baseFontSize * maxWidth / estWidth));
+  }
+  return baseFontSize;
+}
+
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
@@ -171,6 +179,9 @@ export default function MenuScreen() {
   const searchInputRef = React.useRef<RNTextInput>(null);
   const scrollY = useSharedValue(0);
   const [locationFilter, setLocationFilter] = useState<{ lat: number; lng: number } | null>(null);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const overlayFade = useRef(new RNAnimated.Value(0)).current;
+  const [preloadedVideoUri, setPreloadedVideoUri] = useState<string | null>(null);
 
   const topAnimatedStyle = useAnimatedStyle(() => {
     const translateY = interpolate(scrollY.value, [0, 60, 180], [0, -10, -50], Extrapolate.CLAMP);
@@ -181,10 +192,8 @@ export default function MenuScreen() {
     };
   });
 
-  const onScroll = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
+  const onScroll = useAnimatedScrollHandler((event) => {
+    scrollY.value = event.contentOffset.y;
   });
 
   useFocusEffect(
@@ -218,7 +227,7 @@ export default function MenuScreen() {
         try {
           const allRestaurants: Restaurant[] = await getRestaurants();
           const found = allRestaurants.find((r: any) => r.id === restaurant.id);
-          const menuItems = found && found.menuItems ? normalizeMenuItems(found.menuItems) : [];
+          const menuItems = found && found.menuItems ? found.menuItems : [];
           if (isActive) setMenu(menuItems);
         } catch (error) {
           if (isActive) setMenu([]);
@@ -241,6 +250,15 @@ export default function MenuScreen() {
     }, 120); // 120ms debounce
     return () => clearTimeout(handler);
   }, [searchText]);
+
+  useEffect(() => {
+    // Preload the OnboardTakePhoto.mp4 video asset for help/onboarding
+    const videoModule = require('../assets/OnboardTakePhoto.mp4');
+    Asset.loadAsync(videoModule).then(() => {
+      const asset = Asset.fromModule(videoModule);
+      setPreloadedVideoUri(asset.uri);
+    });
+  }, []);
 
   const openAllergenModal = () => {
     setSelectedAllergens(profile.allergens || []);
@@ -341,10 +359,7 @@ export default function MenuScreen() {
   }, [menu, debouncedSearchText, locationFilter]);
 
   const Card = ({ item, index }: { item: MenuItem; index: number }) => {
-    const normalizedUserAllergies = userAllergies.map(u => u.toLowerCase().trim());
-    const matchCount = item.allergens.filter(a => normalizedUserAllergies.includes(a.toLowerCase().trim())).length;
-    const isExpanded = expandedIndex === index && matchCount > 0;
-    const canExpand = matchCount > 0;
+    const isExpanded = expandedIndex === index;
     const [pressed, setPressed] = useState(false);
 
     const baseCardStyle = [
@@ -366,59 +381,9 @@ export default function MenuScreen() {
       },
     ].filter(Boolean);
 
-    // Helper to render tally marks as white rounded rectangles
-    const renderTallies = (count: number) => {
-      return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-          {Array.from({ length: count }).map((_, i) => (
-            <View
-              key={i}
-              style={{
-                width: 8,
-                height: 28,
-                borderRadius: 4,
-                backgroundColor: '#fff',
-                marginHorizontal: 2,
-              }}
-            />
-          ))}
-        </View>
-      );
-    };
-
     const CardContainer = ({ children }: { children: React.ReactNode }) => (
       <View style={baseCardStyle}>{children}</View>
-      // Use BlurView on iOS if you want: 
-      // <BlurView intensity={40} tint="light" style={baseCardStyle}>{children}</BlurView>
     );
-
-    if (!canExpand) {
-      return (
-        <Pressable>
-          <CardContainer>
-            <View style={styles.menuCardContent}>
-              <View style={styles.menuTextCenterer}>
-                <Text style={styles.menuItemName}>{item.name}</Text>
-              </View>
-            </View>
-            {/* Always render the green box for no allergen matches */}
-            <View style={{ marginRight: 4, marginLeft: 8, alignItems: 'center', justifyContent: 'center' }}>
-              <View
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 7,
-                  backgroundColor: '#4CAF50',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexDirection: 'row' as 'row',
-                }}
-              />
-            </View>
-          </CardContainer>
-        </Pressable>
-      );
-    }
 
     return (
       <Pressable
@@ -433,13 +398,19 @@ export default function MenuScreen() {
           <View style={styles.menuCardContent}>
             <View style={styles.menuTextCenterer}>
               <Text style={styles.menuItemName}>{item.name}</Text>
+              {item.allergenIngredients && Object.values(item.allergenIngredients).flat().length > 0 && (
+                <Text style={{ fontSize: 16, color: '#666', marginTop: 8, fontFamily: 'ReadexPro-Regular', textAlign: 'center' }}>
+                  {Array.from(new Set(Object.values(item.allergenIngredients).flat())).join(', ')}
+                </Text>
+              )}
             </View>
-            {isExpanded && (
+            {/* Restore allergen badges row in expanded view */}
+            {isExpanded && item.allergenIngredients && Object.keys(item.allergenIngredients).length > 0 && (
               <View style={styles.allergenListContainer}>
                 <View style={styles.allergenRow}>
-                  <Text style={{ fontSize: 20, color: '#000', fontWeight: '400', fontFamily: 'ReadexPro-Regular' }}>Contains:</Text>
+                  <Text style={{ fontSize: 16, color: '#000', fontWeight: '400', fontFamily: 'ReadexPro-Regular' }}>Contains:</Text>
                   <View style={{ flexDirection: 'row', marginLeft: 8, flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 2 }}>
-                    {item.allergens.map((allergen, i) => {
+                    {Object.keys(item.allergenIngredients).map((allergen, i) => {
                       let key = allergen.toLowerCase().trim();
                       if (key === 'peanuts') key = 'peanut';
                       if (key === 'treenuts') key = 'tree nuts';
@@ -454,7 +425,7 @@ export default function MenuScreen() {
                       return (
                         <View key={i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8, marginBottom: 4 }}>
                           {Icon ? <Icon width={20} height={20} style={{ marginRight: 4 }} /> : null}
-                          <Text style={{ color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 18 }}>{allergen}</Text>
+                          <Text style={{ color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 15 }}>{allergen}</Text>
                         </View>
                       );
                     })}
@@ -462,40 +433,39 @@ export default function MenuScreen() {
                 </View>
               </View>
             )}
-          </View>
-          {/* Allergen tally square */}
-          <View style={{ marginRight: 4, marginLeft: 8, alignItems: 'center', justifyContent: 'center' }}>
-            <View
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 7,
-                backgroundColor: matchCount > 0 ? '#ff4d4d' : '#4CAF50',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'row' as 'row',
-              }}
-            >
-              {matchCount > 0 ? (
-                <View style={{ flexDirection: 'row' as 'row', alignItems: 'center', justifyContent: 'center' }}>
-                  {Array.from({ length: matchCount }).map((_, i) => (
-                    <View
-                      key={i}
-                      style={{
-                        width: 4,
-                        height: 16,
-                        borderRadius: 2,
-                        backgroundColor: '#fff',
-                        marginHorizontal: 1,
-                      }}
-                    />
-                  ))}
+            {/* Allergen tally icon at the right (only when not expanded) */}
+            {!isExpanded && (
+              <View style={{ marginRight: 4, marginLeft: 8, alignItems: 'center', justifyContent: 'center', position: 'absolute', right: 0, top: '50%', transform: [{ translateY: -14 }] }}>
+                <View
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 7,
+                    backgroundColor: item.allergenIngredients && Object.keys(item.allergenIngredients).length > 0 ? '#ff4d4d' : '#4CAF50',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'row',
+                  }}
+                >
+                  {item.allergenIngredients && Object.keys(item.allergenIngredients).length > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                      {Array.from({ length: Object.keys(item.allergenIngredients).length }).map((_, i) => (
+                        <View
+                          key={i}
+                          style={{
+                            width: 4,
+                            height: 16,
+                            borderRadius: 2,
+                            backgroundColor: '#fff',
+                            marginHorizontal: 1,
+                          }}
+                        />
+                      ))}
+                    </View>
+                  )}
                 </View>
-              ) : (
-                // Always render the green box, but empty
-                null
-              )}
-            </View>
+              </View>
+            )}
           </View>
         </CardContainer>
       </Pressable>
@@ -514,7 +484,7 @@ export default function MenuScreen() {
             delayLongPress={500}
             style={{ width: '100%' }}
           >
-            <Text style={styles.header}>
+            <Text style={[styles.header, { fontSize: getDynamicHeaderFontSize(getDisplayName(latestRestaurant)) }]}>
               {getDisplayName(latestRestaurant)}
             </Text>
           </Pressable>
@@ -579,6 +549,19 @@ export default function MenuScreen() {
     </>
   ), [topAnimatedStyle, latestRestaurant, handleEditRestaurantName, searchText]);
 
+  const handleHomePress = () => {
+    setShowOverlay(true);
+    // Start overlay fade-in
+    RNAnimated.timing(overlayFade, {
+      toValue: 1,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
+    // Immediately reset navigation stack
+    console.log('---NAVIGATION LOG--- Navigating from MenuScreen to HomeScreen');
+    navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+  };
+
   return (
     <TouchableWithoutFeedback
       onPress={() => {
@@ -587,9 +570,25 @@ export default function MenuScreen() {
       accessible={false}
     >
       <GestureHandlerRootView style={styles.container}>
+        {/* White fade overlay for transition */}
+        {showOverlay && (
+          <RNAnimated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#fff',
+              opacity: overlayFade,
+              zIndex: 999,
+            }}
+          />
+        )}
         <TouchableOpacity
           style={[styles.homeButton, { backgroundColor: '#fff', borderRadius: 18, width: 36, height: 36, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }]}
-          onPress={() => navigation.replace('Home')}
+          onPress={handleHomePress}
           accessibilityLabel="Go to Home"
         >
           <Feather name="home" size={28} color="#222" />
@@ -904,5 +903,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     fontFamily: 'ReadexPro-Bold',
+  },
+  iconContainer: {
+    marginLeft: 'auto',
+    padding: 10,
+  },
+  icon: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
   },
 });

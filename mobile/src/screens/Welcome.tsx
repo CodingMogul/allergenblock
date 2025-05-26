@@ -18,20 +18,19 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 const Welcome = () => {
   const navigation = useNavigation();
-  const circleAnim = useRef(new Animated.Value(0)).current;
   const peanutAnim = useRef(new Animated.Value(56)).current; // peanut path length
   const lineAnim = useRef(new Animated.Value(28)).current;   // line path length
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const hasAnimated = useRef(false);
 
   useEffect(() => {
     if (hasAnimated.current) return;
     hasAnimated.current = true;
-    // Animate the red circle
-    Animated.timing(circleAnim, {
+    // Dissolve in the screen
+    Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 900,
-      easing: Easing.out(Easing.exp),
-      useNativeDriver: false,
+      duration: 600,
+      useNativeDriver: true,
     }).start();
 
     // Delay before peanut drawing
@@ -54,42 +53,13 @@ const Welcome = () => {
           }, 1500);
         });
       });
-    }, 900 + 600); // 600ms delay after circle
+    }, 600 + 600); // 600ms delay after fade
 
     return () => {};
-  }, [circleAnim, peanutAnim, lineAnim, navigation]);
-
-  const circleScale = circleAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1.5],
-  });
-  const circleOpacity = circleAnim.interpolate({
-    inputRange: [0, 0.1, 1],
-    outputRange: [0, 0.7, 1],
-  });
+  }, [peanutAnim, lineAnim, navigation]);
 
   return (
-    <View style={styles.container}>
-      {/* Expanding red circle */}
-      <Animated.View
-        style={[
-          styles.animatedCircle,
-          {
-            opacity: circleOpacity,
-            transform: [
-              { scale: circleScale },
-              { translateX: -DIAGONAL * 0.75 },
-              { translateY: -DIAGONAL * 0.75 },
-            ],
-            width: DIAGONAL * 1.5,
-            height: DIAGONAL * 1.5,
-            borderRadius: DIAGONAL * 0.75,
-            backgroundColor: RED,
-            left: '50%',
-            top: '50%',
-          },
-        ]}
-      />
+    <Animated.View style={[styles.container, { backgroundColor: RED, opacity: fadeAnim }]}>
       {/* Animated peanut and line above the text */}
       <Svg width={160} height={160} viewBox="0 0 24 24" style={{ marginBottom: 16, zIndex: 2 }}>
         <AnimatedPath
@@ -113,20 +83,17 @@ const Welcome = () => {
       </Svg>
       {/* White Text */}
       <Text style={styles.text}>Let's Eat!</Text>
-    </View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: RED,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-  },
-  animatedCircle: {
-    position: 'absolute',
   },
   text: {
     marginTop: 0,

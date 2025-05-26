@@ -64,13 +64,14 @@ export default function OnboardingCarouselDemo() {
   const route = useRoute();
   const preloadedVideoUri = (route as any).params?.preloadedVideoUri;
   const [videoReady, setVideoReady] = useState(false);
-  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [showContinue, setShowContinue] = useState(false);
   const [videoUri, setVideoUri] = useState<string | null>(preloadedVideoUri || null);
   const videoRef = useRef<any>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const isMountedRef = useRef(true);
   const hapticTimeouts: NodeJS.Timeout[] = [];
   const fromHelp = (route as any).params?.fromHelp;
+  const continueTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const cancelLoop = () => {
     isMountedRef.current = false;
@@ -124,24 +125,26 @@ export default function OnboardingCarouselDemo() {
     }
   }, []);
 
-  // Set minTimeElapsed after 4.4 seconds
+  // Show continue button 1.2s after video is ready
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setMinTimeElapsed(true);
-    }, 4400);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Fade in continue button only when both videoReady and minTimeElapsed
-  useEffect(() => {
-    if (videoReady && minTimeElapsed) {
-      Animated.timing(continueFade, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }).start();
+    if (videoReady) {
+      continueTimerRef.current = setTimeout(() => {
+        setShowContinue(true);
+        Animated.timing(continueFade, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }).start();
+      }, 1200);
+    } else {
+      setShowContinue(false);
+      continueFade.setValue(0);
+      if (continueTimerRef.current) clearTimeout(continueTimerRef.current);
     }
-  }, [videoReady, minTimeElapsed]);
+    return () => {
+      if (continueTimerRef.current) clearTimeout(continueTimerRef.current);
+    };
+  }, [videoReady]);
 
   const handleContinue = () => {
     cancelLoop();
@@ -151,11 +154,32 @@ export default function OnboardingCarouselDemo() {
   };
 
   const handleSkip = () => {
+    cancelLoop();
     navigation.navigate('Home');
   };
 
   return (
     <View style={styles.container}>
+      {/* Home button centered above title if fromHelp */}
+      {fromHelp && (
+        <View style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center', top: 60, zIndex: 101 }}>
+          <TouchableOpacity onPress={handleSkip} style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: '#fff',
+            justifyContent: 'center',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOpacity: 0.08,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 4,
+          }}>
+            <Feather name="home" size={28} color="#DA291C" />
+          </TouchableOpacity>
+        </View>
+      )}
       <Text style={styles.title}>Build your allergy profile</Text>
       <Text style={styles.subtitle}>Select the allergens you have.</Text>
       <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
@@ -217,10 +241,21 @@ export default function OnboardingCarouselDemo() {
           pointerEvents="none"
         />
       </View>
-      <Animated.View style={{ opacity: continueFade }}>
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueButtonText}>Continue →</Text>
-        </TouchableOpacity>
+      {/* Continue button overlay, absolute and centered */}
+      <Animated.View style={{
+        opacity: continueFade,
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 150,
+        alignItems: 'center',
+        zIndex: 100,
+      }} pointerEvents={showContinue ? 'auto' : 'none'}>
+        {showContinue && (
+          <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+            <Text style={styles.continueButtonText}>Continue →</Text>
+          </TouchableOpacity>
+        )}
       </Animated.View>
       {/* Preload video invisibly for caching and set videoReady */}
       {videoUri && (
@@ -232,12 +267,6 @@ export default function OnboardingCarouselDemo() {
           resizeMode={ResizeMode.CONTAIN}
           onLoad={() => setVideoReady(true)}
         />
-      )}
-      {/* Skip button in top right if fromHelp */}
-      {fromHelp && (
-        <TouchableOpacity style={{ position: 'absolute', top: 40, right: 24, zIndex: 100 }} onPress={handleSkip}>
-          <Text style={{ color: '#DA291C', fontSize: 18, fontFamily: 'ReadexPro-Bold' }}>Skip</Text>
-        </TouchableOpacity>
       )}
     </View>
   );

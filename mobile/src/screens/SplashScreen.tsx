@@ -11,6 +11,8 @@ const SplashScreen = () => {
   const navigation = useNavigation();
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const peanutAnim = useRef(new Animated.Value(40)).current; // path length
+  const overlayFade = useRef(new Animated.Value(0)).current;
+  const [showOverlay, setShowOverlay] = React.useState(false);
 
   useEffect(() => {
     // Animate fade in and peanut draw
@@ -29,16 +31,17 @@ const SplashScreen = () => {
         easing: Easing.linear,
       })
     ]).start();
-    // Fade out before navigating to Home after 2 seconds
+    // After 1.2s, fade in white overlay, then navigate to Home
     const timeout = setTimeout(() => {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 500,
+      setShowOverlay(true);
+      Animated.timing(overlayFade, {
+        toValue: 1,
+        duration: 350,
         useNativeDriver: true,
       }).start(() => {
-        (navigation as any).reset({ index: 0, routes: [{ name: 'Home', params: { fadeIn: true } }] });
+        (navigation as any).reset({ index: 0, routes: [{ name: 'Home' }] });
       });
-    }, 2000);
+    }, 1200);
     return () => clearTimeout(timeout);
   }, [fadeAnim, peanutAnim, navigation]);
 
@@ -63,6 +66,14 @@ const SplashScreen = () => {
           </Text>
         </View>
       </Animated.View>
+      {showOverlay && (
+        <Animated.View style={{
+          ...StyleSheet.absoluteFillObject,
+          backgroundColor: '#fff',
+          opacity: overlayFade,
+          zIndex: 999,
+        }} />
+      )}
     </Animated.View>
   );
 };

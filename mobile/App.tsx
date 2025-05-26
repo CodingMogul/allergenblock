@@ -13,7 +13,7 @@ import { UserProfileProvider } from './src/context/UserProfileContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as Font from 'expo-font';
-import { View, Text, Button, Alert } from 'react-native';
+import { View, Text, Button, Alert, TouchableOpacity } from 'react-native';
 import HomeScreen from './src/screens/HomeScreen';
 import MenuScreen from './src/screens/MenuScreen';
 import Welcome from './src/screens/Welcome';
@@ -21,12 +21,6 @@ import SplashScreen from './src/screens/SplashScreen';
 import { OnboardingVideoProvider } from './src/context/OnboardingVideoContext';
 
 const Stack = createStackNavigator();
-
-// Add clearAsyncStorage debug function
-const clearAsyncStorage = async () => {
-  await AsyncStorage.clear();
-  alert('AsyncStorage cleared!');
-};
 
 export default function App() {
   const [fontsLoaded] = Font.useFonts({
@@ -58,17 +52,23 @@ export default function App() {
     })();
   }, []);
 
+  // ===== DEBUG: CLEAR ASYNC STORAGE BUTTON (REMOVE THIS BLOCK WHEN DONE) =====
+  const handleClearAsyncStorage = async () => {
+    try {
+      await AsyncStorage.clear();
+      Alert.alert('AsyncStorage cleared!');
+      // Optionally reload the app (uncomment if desired):
+      // Updates.reloadAsync();
+    } catch (e) {
+      Alert.alert('Failed to clear AsyncStorage');
+    }
+  };
+  // ===== END DEBUG BLOCK =====
+
   if (!fontsLoaded || !initialRoute) return <View style={{flex:1,justifyContent:'center',alignItems:'center'}}><Text>Loading fonts...</Text></View>;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* DEBUG: Remove this block to hide the clear AsyncStorage button */}
-      {__DEV__ && (
-        <View style={{ position: 'absolute', top: 40, left: 0, right: 0, zIndex: 9999, alignItems: 'center' }}>
-          <Button title="Clear AsyncStorage" color="#DA291C" onPress={clearAsyncStorage} />
-        </View>
-      )}
-      {/* END DEBUG: Clear AsyncStorage button */}
       <OnboardingVideoProvider>
         <UserProfileProvider>
           <NavigationContainer>
@@ -105,6 +105,26 @@ export default function App() {
           </NavigationContainer>
         </UserProfileProvider>
       </OnboardingVideoProvider>
+      {/* ===== DEBUG: CLEAR ASYNC STORAGE BUTTON (REMOVE THIS BLOCK WHEN DONE) ===== */}
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 40, alignItems: 'center', zIndex: 999 }}>
+        <TouchableOpacity
+          onPress={handleClearAsyncStorage}
+          style={{
+            backgroundColor: '#fff',
+            borderRadius: 8,
+            shadowColor: '#000',
+            shadowOpacity: 0.12,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 3,
+            paddingVertical: 6,
+            paddingHorizontal: 12,
+          }}
+        >
+          <Text style={{ color: '#DA291C', fontWeight: 'bold', fontSize: 18 }}>Clear AsyncStorage</Text>
+        </TouchableOpacity>
+      </View>
+      {/* ===== END DEBUG BLOCK ===== */}
     </GestureHandlerRootView>
   );
 }

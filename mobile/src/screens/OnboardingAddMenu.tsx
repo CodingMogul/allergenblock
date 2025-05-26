@@ -22,6 +22,7 @@ import { BlurView } from 'expo-blur';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../screens/types/navigation';
 import { Video, ResizeMode } from 'expo-av';
+import { useAnimatedScrollHandler } from 'react-native-reanimated';
 
 const { width, height } = Dimensions.get('window');
 
@@ -119,8 +120,8 @@ const menuCardStyles = StyleSheet.create({
   },
   allergenListContainer: {
     width: '100%',
-    marginTop: 16,
-    marginBottom: 20,
+    marginTop: 8,
+    marginBottom: 10,
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
@@ -175,13 +176,13 @@ const FakeMenuCard = ({ onExpand }: { onExpand: () => void }) => {
         setExpanded(true);
         Animated.timing(expandAnim, {
           toValue: 1,
-          duration: 350,
+          duration: 10,
           useNativeDriver: false,
           easing: Easing.out(Easing.ease),
         }).start(() => {
           const expandTimeout = setTimeout(() => {
             if (!cancelRef.current.cancelled) onExpand();
-          }, 3000);
+          }, 1000);
           cancelRef.current.timeouts.push(expandTimeout);
         });
       });
@@ -197,10 +198,16 @@ const FakeMenuCard = ({ onExpand }: { onExpand: () => void }) => {
   }, []);
 
   // Fake menu item data
-  const item = {
+  const item: {
+    name: string;
+    ingredients: string;
+    allergens: string[];
+    allergenIngredients: Record<string, string[]>;
+  } = {
     name: 'Pad Thai',
     ingredients: 'Noodles, tofu, peanuts, egg',
     allergens: ['Peanut'],
+    allergenIngredients: { Peanut: ['peanuts', 'sauce'] },
   };
   const matchCount = 1; // For demo, always 1 allergen
 
@@ -209,11 +216,13 @@ const FakeMenuCard = ({ onExpand }: { onExpand: () => void }) => {
       <View style={{ flex: 1, minHeight: expanded ? 160 : 100, justifyContent: 'center' }}>
         <View style={menuCardStyles.menuTextCenterer}>
           <Text style={[menuCardStyles.menuItemName, { fontFamily: 'ReadexPro-Regular' }]}>{item.name}</Text>
+          {item.ingredients && (
+            <Text style={{ fontSize: 16, color: '#666', marginTop: 8, fontFamily: 'ReadexPro-Regular', textAlign: 'center' }}>{item.ingredients}</Text>
+          )}
         </View>
-        <Text style={{ fontSize: 16, color: '#666', marginTop: 8, fontFamily: 'ReadexPro-Regular', textAlign: 'center' }}>{item.ingredients}</Text>
         {expanded && (
           <Animated.View style={{
-            marginTop: 18,
+            marginTop: 8,
             opacity: expandAnim,
             width: '100%',
             alignItems: 'center',
@@ -221,43 +230,49 @@ const FakeMenuCard = ({ onExpand }: { onExpand: () => void }) => {
             <View style={menuCardStyles.allergenListContainer}>
               <View style={menuCardStyles.allergenRow}>
                 <Text style={[menuCardStyles.menuItemAllergensExpanded, { fontSize: 18, fontFamily: 'ReadexPro-Bold' }]}>Contains:</Text>
-                <Text style={[menuCardStyles.allergenText, { marginLeft: 8, fontSize: 18, color: '#DA291C', fontWeight: 'bold', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, fontFamily: 'ReadexPro-Bold' }]}>Peanut</Text>
+                {item.allergens.map((allergen, i) => (
+                  <View key={i} style={{ flexDirection: 'column', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 8 }}>
+                    <Text style={[menuCardStyles.allergenText, { fontSize: 18, color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold' }]}>{allergen}</Text>
+                  </View>
+                ))}
               </View>
             </View>
           </Animated.View>
         )}
       </View>
       {/* Allergen tally square (red box) */}
-      <View style={{ marginRight: 4, marginLeft: 8, alignItems: 'center', justifyContent: 'center' }}>
-        <View
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            backgroundColor: matchCount > 0 ? '#ff4d4d' : '#4CAF50',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'row',
-          }}
+      {!expanded && (
+        <TouchableOpacity
+          style={styles.iconContainer}
+          activeOpacity={1}
         >
-          {matchCount > 0 ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              {Array.from({ length: matchCount }).map((_, i) => (
-                <View
-                  key={i}
-                  style={{
-                    width: 4,
-                    height: 16,
-                    borderRadius: 2,
-                    backgroundColor: '#fff',
-                    marginHorizontal: 1,
-                  }}
-                />
-              ))}
-            </View>
-          ) : null}
-        </View>
-      </View>
+          <View
+            style={[
+              styles.icon,
+              {
+                backgroundColor: matchCount > 0 ? '#ff4d4d' : '#4CAF50',
+              }
+            ]}
+          >
+            {matchCount > 0 ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                {Array.from({ length: matchCount }).map((_, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      width: 4,
+                      height: 16,
+                      borderRadius: 2,
+                      backgroundColor: '#fff',
+                      marginHorizontal: 1,
+                    }}
+                  />
+                ))}
+              </View>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+      )}
     </Animated.View>
   );
 };
@@ -306,6 +321,8 @@ const OnboardingAddMenu = () => {
   const route = useRoute();
   const fromHelp = (route as any).params?.fromHelp;
   const preloadedVideoUri = (route as any).params?.preloadedVideoUri;
+  const cancelRef = useRef({ cancelled: false, timeouts: [] as any[] });
+  const continueFade = useRef(new Animated.Value(0)).current;
 
   // Animate in/out for each step
   useEffect(() => {
@@ -369,6 +386,19 @@ const OnboardingAddMenu = () => {
     };
   }, [showPermissionModal, permissionStep]);
 
+  // Show continue button 1.2s after card is active
+  useEffect(() => {
+    if (cardActive) {
+      Animated.timing(continueFade, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      continueFade.setValue(0);
+    }
+  }, [cardActive]);
+
   const openSettings = () => {
     if (Platform.OS === 'ios') {
       Linking.openURL('app-settings:');
@@ -406,8 +436,12 @@ const OnboardingAddMenu = () => {
         setPermissionStep('done');
         setTimeout(() => {
           setShowPermissionModal(false);
-          navigation.navigate('ProfileSetup', { fromOnboarding: true });
-        }, 1000); // 1s pause before ProfileSetup
+          if (fromHelp) {
+            navigation.navigate('Home');
+          } else {
+            navigation.navigate('ProfileSetup', { fromOnboarding: true });
+          }
+        }, 1000); // 1s pause before next screen
       }, 0);
       return;
     }
@@ -419,8 +453,12 @@ const OnboardingAddMenu = () => {
         setPermissionStep('done');
         setTimeout(() => {
           setShowPermissionModal(false);
-          navigation.navigate('ProfileSetup', { fromOnboarding: true });
-        }, 1000); // 1s pause before ProfileSetup
+          if (fromHelp) {
+            navigation.navigate('Home');
+          } else {
+            navigation.navigate('ProfileSetup', { fromOnboarding: true });
+          }
+        }, 1000); // 1s pause before next screen
       }, 0);
     } else {
       setRequesting(false);
@@ -443,6 +481,10 @@ const OnboardingAddMenu = () => {
   };
 
   const handleContinue = () => {
+    // Stop all ongoing animations and timeouts
+    cancelRef.current.cancelled = true;
+    cancelRef.current.timeouts.forEach(clearTimeout);
+    cancelRef.current.timeouts = [];
     // Fade out title/subtitle
     Animated.timing(textFadeAnim, {
       toValue: 0,
@@ -453,8 +495,6 @@ const OnboardingAddMenu = () => {
     });
     setContinueVisible(false); // Hide continue button immediately
     setAnimationPaused(true);
-    // Clear any animation timeouts/loops
-    // (If you have refs to timeouts, clear them here)
     setShowPermissionModal(true);
     setTimeout(() => {
       setTimeout(() => {
@@ -481,12 +521,15 @@ const OnboardingAddMenu = () => {
 
   // Skip button handler
   const handleSkip = () => {
+    // Stop all ongoing animations and timeouts
+    cancelRef.current.cancelled = true;
+    cancelRef.current.timeouts.forEach(clearTimeout);
+    cancelRef.current.timeouts = [];
     navigation.navigate('Home');
   };
 
   return (
     <View style={styles.container}>
-      {/* Top Text - match OnboardingScanDemo */}
       <Animated.View style={[styles.topSection, { opacity: textVisible ? textFadeAnim : 0 }]}> 
         <Text style={styles.title}>Custom Allergy Menu</Text>
         <Text style={styles.subtitle}>AI finds your allergens.</Text>
@@ -508,11 +551,41 @@ const OnboardingAddMenu = () => {
           </>
         )}
       </View>
-      {/* Continue Button at the bottom */}
-      {continueVisible && !showPermissionModal && (
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-          <Text style={styles.continueButtonText}>Continue →</Text>
-        </TouchableOpacity>
+      {/* Continue Button at the bottom, always visible except during permission modal */}
+      {!showPermissionModal && (
+        <View style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 180,
+          alignItems: 'center',
+          zIndex: 100,
+        }}>
+          <TouchableOpacity
+            style={
+              fromHelp
+                ? {
+                    backgroundColor: '#fff',
+                    borderRadius: 40,
+                    paddingHorizontal: 28,
+                    paddingVertical: 6,
+                    shadowColor: '#000',
+                    shadowOpacity: 0.08,
+                    shadowRadius: 4,
+                    shadowOffset: { width: 0, height: 2 },
+                    elevation: 2,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }
+                : styles.continueButton
+            }
+            onPress={handleContinue}
+          >
+            <Text style={fromHelp ? { color: '#DA291C', fontSize: 18, fontFamily: 'ReadexPro-Bold' } : styles.continueButtonText}>
+              {fromHelp ? 'Understood!' : 'Continue →'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       )}
       {/* Permission Modal */}
       <Modal visible={showPermissionModal} transparent animationType="slide" onRequestClose={() => {}}>
@@ -556,12 +629,6 @@ const OnboardingAddMenu = () => {
           </View>
         </View>
       </Modal>
-      {/* Skip button in top right if fromHelp */}
-      {fromHelp && (
-        <TouchableOpacity style={{ position: 'absolute', top: 40, right: 24, zIndex: 20 }} onPress={handleSkip}>
-          <Text style={{ color: '#DA291C', fontSize: 18, fontFamily: 'ReadexPro-Bold' }}>Skip</Text>
-        </TouchableOpacity>
-      )}
       {/* Preload video invisibly for caching */}
       {preloadedVideoUri && (
         <Video
@@ -570,6 +637,7 @@ const OnboardingAddMenu = () => {
           isMuted
           shouldPlay={false}
           resizeMode={ResizeMode.CONTAIN}
+          isLooping={true}
         />
       )}
     </View>
@@ -669,6 +737,19 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
+  },
+  iconContainer: {
+    marginRight: 4,
+    marginLeft: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

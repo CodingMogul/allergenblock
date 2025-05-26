@@ -20,6 +20,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -49,6 +50,7 @@ import { Accelerometer } from 'expo-sensors';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { TextInput as RNTextInput } from 'react-native';
 import { RootStackParamList } from '../screens/types/navigation';
+import { Asset } from 'expo-asset';
 
 type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
 
@@ -114,15 +116,6 @@ async function getGoogleMatchedNameAndLocation(inputName: string, location: { la
   return { name: inputName, location };
 }
 
-function normalizeGeminiMenuItems(rawMenuItems: any[]): MenuItem[] {
-  return rawMenuItems.map((item, idx) => ({
-    id: item.id || idx.toString(),
-    name: item.name,
-    allergens: item.allergens || [],
-    certainty: item.certainty,
-  }));
-}
-
 function createRestaurantFromGemini(data: any, restaurantName: string, location: { lat: number, lng: number }): Restaurant {
   return {
     id: uuid.v4(),
@@ -134,7 +127,7 @@ function createRestaurantFromGemini(data: any, restaurantName: string, location:
         (data.location && data.location.lat) || location.lat,
       ],
     },
-    menuItems: normalizeGeminiMenuItems(data.menuItems || []),
+    menuItems: data.menuItems || [],
     source: data.source || 'camera',
     apimatch: data.apimatch,
     googlePlace: data.googlePlace,
@@ -208,9 +201,10 @@ const HomeScreen = () => {
   const [debouncedSearchText, setDebouncedSearchText] = useState(searchText);
   // Ensure searchInputRef is defined for the search bar
   const searchInputRef = useRef<RNTextInput | null>(null);
+  const [preloadedVideoUri, setPreloadedVideoUri] = useState<string | null>(null);
+  const { width: windowWidth } = useWindowDimensions();
 
   const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
-  const { width } = Dimensions.get('window');
 
   // Fetch restaurants function (moved outside useEffect for reuse)
   const fetchRestaurants = async () => {
@@ -304,7 +298,7 @@ const HomeScreen = () => {
         }))
         .sort((a, b) => b.similarity - a.similarity);
     } else if (locationFilter) {
-      // If location filter is active, sort by distance and filter to 100 meters
+      // If location filter is active, sort by distance only (do not filter by distance)
       list = list
         .map(r => {
           const lat = r.location?.coordinates?.[1] ?? 0;
@@ -317,7 +311,6 @@ const HomeScreen = () => {
           }
           return { ...r, distance: Infinity };
         })
-        .filter(r => (r.distance ?? Infinity) <= 0.1) // 0.1 km = 100 meters
         .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }
     return list;
@@ -375,7 +368,7 @@ const HomeScreen = () => {
             coordinates: [verifiedLocation.lng ?? 0, verifiedLocation.lat ?? 0] as [number, number],
           },
           verifiedLocation,
-          menuItems: normalizeGeminiMenuItems(menuItems),
+          menuItems: menuItems,
           source: data.source || 'camera',
           apimatch,
           googlePlace,
@@ -616,6 +609,29 @@ const HomeScreen = () => {
     }
   }, [route]);
 
+  useEffect(() => {
+    // Preload the OnboardTakePhoto.mp4 video asset for help/onboarding
+    const videoModule = require('../assets/OnboardTakePhoto.mp4');
+    Asset.loadAsync(videoModule).then(() => {
+      const asset = Asset.fromModule(videoModule);
+      setPreloadedVideoUri(asset.uri);
+    });
+  }, []);
+
+  // Helper to get dynamic font size for title
+  function getDynamicTitleFontSize(title: string) {
+    const baseFontSize = 54;
+    const minFontSize = 32;
+    // Estimate width: each char ~0.6em, so max chars for width
+    const maxWidth = windowWidth - 40;
+    const estWidth = title.length * baseFontSize * 0.6;
+    if (estWidth > maxWidth) {
+      // Reduce font size proportionally, but not below minFontSize
+      return Math.max(minFontSize, Math.floor(baseFontSize * maxWidth / estWidth));
+    }
+    return baseFontSize;
+  }
+
   const RestaurantCard = ({
     item,
     isNew,
@@ -649,6 +665,17 @@ const HomeScreen = () => {
       : '#000';
     const lat = item.location?.coordinates?.[1] ?? 0;
     const lng = item.location?.coordinates?.[0] ?? 0;
+    // Dynamic font size for restaurant name
+    function getDynamicNameFontSize(name: string) {
+      const baseFontSize = 26;
+      const minFontSize = 16;
+      const maxWidth = windowWidth - 180; // account for padding/logo
+      const estWidth = name.length * baseFontSize * 0.6;
+      if (estWidth > maxWidth) {
+        return Math.max(minFontSize, Math.floor(baseFontSize * maxWidth / estWidth));
+      }
+      return baseFontSize;
+    }
     return (
       <LongPressGestureHandler
         onHandlerStateChange={({ nativeEvent }: { nativeEvent: any }) => {
@@ -692,7 +719,7 @@ const HomeScreen = () => {
             <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', marginLeft: 60 }}>
               <Animated.Text style={[
                 styles.name,
-                { color: textColor, textAlign: 'left', alignSelf: 'flex-start', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 26 }
+                { color: textColor, textAlign: 'left', alignSelf: 'flex-start', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: getDynamicNameFontSize(getDisplayName(item)) }
               ]}>
                 {getDisplayName(item)}
               </Animated.Text>
@@ -883,7 +910,7 @@ const HomeScreen = () => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           setCautionModalVisible(true);
         }}>
-          <Text style={styles.title}>
+          <Text style={[styles.title, { fontSize: getDynamicTitleFontSize('EpiEats') }]}>
             <Text style={[styles.epi, cautionModalVisible && { color: '#DA291C' }]}>Epi</Text>
             <Text style={[styles.eats, cautionModalVisible && { color: '#DA291C' }]}>Eats</Text>
           </Text>
@@ -924,7 +951,7 @@ const HomeScreen = () => {
         </View>
       </View>
     </>
-  ), [setCautionModalVisible, setSearchBarVisible, setLocationFilter, locationFilter, searchBarVisible, searchText]);
+  ), [setCautionModalVisible, setSearchBarVisible, setLocationFilter, locationFilter, searchBarVisible, searchText, windowWidth, cautionModalVisible]);
 
   useEffect(() => {
     setDebouncedSearchText(searchText);
@@ -995,11 +1022,24 @@ const HomeScreen = () => {
                 </View>
                 {/* X button to cancel loading */}
                 <TouchableOpacity
-                  style={{ marginTop: 66, alignItems: 'center' }}
+                  style={{
+                    marginTop: 66,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: '#fff',
+                    shadowColor: '#000',
+                    shadowOpacity: 0.08,
+                    shadowRadius: 4,
+                    shadowOffset: { width: 0, height: 4 },
+                    elevation: 4,
+                  }}
                   onPress={() => setShowLoadingOverlay(false)}
                   accessibilityLabel="Cancel finding allergens"
                 >
-                  <Text style={{ color: '#222', fontSize: 32, fontWeight: 'bold' }}>✕</Text>
+                  <Feather name="x" size={28} color="#DA291C" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -1200,11 +1240,6 @@ const HomeScreen = () => {
             </Pressable>
           </Modal>
 
-          {/* Home fade-in overlay */}
-          {showHomeFadeIn && (
-            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: homeFadeAnim, zIndex: 9998 }]} pointerEvents="none" />
-          )}
-
           {/* Undo Snackbar/Modal */}
           {undoVisible && (
             <Modal
@@ -1270,7 +1305,7 @@ const HomeScreen = () => {
           {/* Floating help button in top right */}
           <TouchableOpacity
             style={styles.helpButtonRight}
-            onPress={() => navigation.navigate('OnboardingCarouselDemo'as any)}
+            onPress={() => navigation.navigate('OnboardingCarouselDemo' as any, { fromHelp: true, preloadedVideoUri })}
             accessibilityLabel="Help"
           >
             <Feather name="help-circle" size={30} color="#222" />

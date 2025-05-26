@@ -10,7 +10,8 @@ import {
   Alert,
   Appearance,
   FlatList,
-  Dimensions
+  Dimensions,
+  Animated
 } from 'react-native';
 import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -77,6 +78,8 @@ export default function ProfileSetup() {
   const carouselRef = useRef<any>(null);
   const [showNoAllergyModal, setShowNoAllergyModal] = useState(false);
   const [pendingSave, setPendingSave] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const overlayFade = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     useCallback(() => {
@@ -124,7 +127,16 @@ export default function ProfileSetup() {
       {canGoBack && (
         <TouchableOpacity
           style={styles.homeButton}
-          onPress={() => navigation.replace('Home')}
+          onPress={() => {
+            setShowOverlay(true);
+            Animated.timing(overlayFade, {
+              toValue: 1,
+              duration: 350,
+              useNativeDriver: true,
+            }).start();
+            console.log('---NAVIGATION LOG--- Navigating from ProfileSetup to HomeScreen');
+            navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+          }}
           accessibilityLabel="Go to Home"
         >
           <Feather name="home" size={28} color={isDarkMode ? '#eee' : '#222'} />
@@ -232,6 +244,22 @@ export default function ProfileSetup() {
             </View>
           </View>
         </View>
+      )}
+      {/* White fade overlay for transition */}
+      {showOverlay && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: '#fff',
+            opacity: overlayFade,
+            zIndex: 999,
+          }}
+        />
       )}
     </View>
   );

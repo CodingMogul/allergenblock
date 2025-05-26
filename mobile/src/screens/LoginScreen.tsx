@@ -14,10 +14,9 @@ export default function TitleScreen() {
   const continueButtonFade = useRef(new Animated.Value(0)).current;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [showContinue, setShowContinue] = React.useState(false);
-  const [videoLoopedOnce, setVideoLoopedOnce] = React.useState(false);
-  const [videoPosition, setVideoPosition] = React.useState(0);
-  const fallbackTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [videoReady, setVideoReady] = React.useState(false);
   const [videoUri, setVideoUri] = React.useState<string | null>(null);
+  const continueTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Preload video asset for onboarding
   useEffect(() => {
@@ -27,6 +26,27 @@ export default function TitleScreen() {
       setVideoUri(asset.uri);
     });
   }, []);
+
+  // Show continue button 1.2s after video is ready
+  useEffect(() => {
+    if (videoReady) {
+      continueTimerRef.current = setTimeout(() => {
+        setShowContinue(true);
+        Animated.timing(continueButtonFade, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start();
+      }, 1200);
+    } else {
+      setShowContinue(false);
+      continueButtonFade.setValue(0);
+      if (continueTimerRef.current) clearTimeout(continueTimerRef.current);
+    }
+    return () => {
+      if (continueTimerRef.current) clearTimeout(continueTimerRef.current);
+    };
+  }, [videoReady]);
 
   useEffect(() => {
     // Fade in logo and title together
@@ -45,21 +65,8 @@ export default function TitleScreen() {
       }).start();
     }, 1000);
 
-    // Fallback: show continue button after 5s if video hasn't looped
-    fallbackTimeoutRef.current = setTimeout(() => {
-      if (!showContinue) {
-        setShowContinue(true);
-        Animated.timing(continueButtonFade, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start();
-      }
-    }, 5000);
-
     return () => {
       clearTimeout(subtitleTimeout);
-      if (fallbackTimeoutRef.current) clearTimeout(fallbackTimeoutRef.current);
     };
   }, []);
 
@@ -103,6 +110,7 @@ export default function TitleScreen() {
           isMuted
           shouldPlay={false}
           resizeMode={ResizeMode.CONTAIN}
+          onLoad={() => setVideoReady(true)}
         />
       )}
     </View>

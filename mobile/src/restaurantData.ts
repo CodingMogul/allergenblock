@@ -3,8 +3,7 @@
 export interface MenuItem {
   id?: string; // optional for flexibility
   name: string;
-  allergens: string[];
-  certainty?: number;
+  allergenIngredients: Record<string, string[]>;
 }
 
 export interface GooglePlace {

@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../screens/types/navigation';
 import { Asset } from 'expo-asset';
 import { Video, ResizeMode } from 'expo-av';
+import { Feather } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 const VIDEO_WIDTH = Math.min(width * 0.9, 360);
@@ -42,6 +43,9 @@ const OnboardingScanDemo = () => {
   const subtitleFade = useRef(new Animated.Value(0)).current;
   const [subtitleDone, setSubtitleDone] = useState(false);
 
+  const textSlideAnim = useRef(new Animated.Value(0)).current; // 0=center, 1=top
+  const videoSlideAnim = useRef(new Animated.Value(0)).current; // 0=offscreen, 1=final
+
   const preloadedVideoUri = (route as any).params?.preloadedVideoUri;
   const [videoUri, setVideoUri] = useState<string | null>(preloadedVideoUri || null);
   const fromHelp = (route as any).params?.fromHelp;
@@ -57,52 +61,45 @@ const OnboardingScanDemo = () => {
     }
   }, []);
 
-  // Animation sequence: title fade in, then subtitle (no slide up here)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      Animated.timing(titleFade, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }).start(() => {
-        Animated.timing(subtitleFade, {
-          toValue: 1,
-          duration: 1200,
-          useNativeDriver: true,
-        }).start(() => {
-          setSubtitleDone(true);
-        });
-      });
-    }, 2750);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Slide up both video and text only when both subtitle is done and video is ready
+  // Animation sequence: fade in title/subtitle, then slide up, then slide in video, then show continue button
   useEffect(() => {
     if (isReady) {
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
+      fadeAnim.setValue(1); // Make video container visible (but video itself will animate in)
+      // 1. Fade in title/subtitle
+      Animated.parallel([
+        Animated.timing(titleFade, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(subtitleFade, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        })
+      ]).start(() => {
+        // 2. Wait 500ms, then slide up title/subtitle
+        setTimeout(() => {
+          Animated.timing(textSlideAnim, {
+            toValue: 1,
+            duration: 1200,
+            easing: Easing.out(Easing.exp),
+            useNativeDriver: true,
+          }).start(() => {
+            // 3. Slide in video from below
+            Animated.timing(videoSlideAnim, {
+              toValue: 1,
+              duration: 900,
+              easing: Easing.out(Easing.exp),
+              useNativeDriver: true,
+            }).start(() => setSlideUpComplete(true));
+          });
+        }, 500);
+      });
     }
   }, [isReady]);
 
-  useEffect(() => {
-    if (subtitleDone && isReady) {
-      const timer = setTimeout(() => {
-        Animated.timing(slideAnim, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.exp),
-          useNativeDriver: true,
-        }).start(() => setSlideUpComplete(true));
-      }, 2750);
-      return () => clearTimeout(timer);
-    }
-  }, [subtitleDone, isReady]);
-
-  // Show continue button 1.5s after slide-up animation completes
+  // Show continue button 2s after slide-up animation completes
   useEffect(() => {
     if (slideUpComplete) {
       const timer = setTimeout(() => {
@@ -112,7 +109,7 @@ const OnboardingScanDemo = () => {
           duration: 400,
           useNativeDriver: true,
         }).start();
-      }, 1500);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [slideUpComplete]);
@@ -135,6 +132,26 @@ const OnboardingScanDemo = () => {
 
   return (
     <View style={styles.container}>
+      {/* Home button centered above title if fromHelp */}
+      {fromHelp && (
+        <View style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center', top: 60, zIndex: 21 }}>
+          <TouchableOpacity onPress={handleSkip} style={{
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: '#fff',
+            justifyContent: 'center',
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOpacity: 0.08,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 4,
+          }}>
+            <Feather name="home" size={28} color="#DA291C" />
+          </TouchableOpacity>
+        </View>
+      )}
       {showText && (
         <Animated.View
           style={[
@@ -147,19 +164,28 @@ const OnboardingScanDemo = () => {
               alignItems: 'center',
               zIndex: 10,
               opacity: titleFade,
+              // Slide up after fade-in
               transform: [
                 {
-                  translateY: slideAnim.interpolate({
+                  translateY: textSlideAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [ (Dimensions.get('window').height - 120) / 2, 60 ],
+                    outputRange: [ (Dimensions.get('window').height) / 2 - 60, 60 ],
                   })
                 }
               ],
             },
           ]}
         >
-          <Animated.Text style={[styles.title, { opacity: titleFade }]}>Take a photo.</Animated.Text>
-          <Animated.Text style={[styles.subtitle, { opacity: subtitleFade }]}>Get allergen info.</Animated.Text>
+          <Animated.Text style={[styles.title, { opacity: titleFade }]}>Capture a menu</Animated.Text>
+          <Animated.Text style={[styles.subtitle, { opacity: subtitleFade }]}>And get allergen info</Animated.Text>
+          {/* Continue button 35px below subtitle */}
+          <Animated.View style={{ opacity: continueFade, marginTop: 35, alignItems: 'center', alignSelf: 'center' }} pointerEvents={showContinue ? 'auto' : 'none'}>
+            {showContinue && (
+              <TouchableOpacity style={styles.continueButton} onPress={() => navigation.navigate('OnboardingAddMenu' as any, { preloadedVideoUri: videoUri, fromHelp })}>
+                <Text style={styles.continueButtonText}>Continue →</Text>
+              </TouchableOpacity>
+            )}
+          </Animated.View>
         </Animated.View>
       )}
 
@@ -169,18 +195,20 @@ const OnboardingScanDemo = () => {
         height: VIDEO_HEIGHT,
         justifyContent: 'center',
         position: 'absolute',
-        top: 290,
+        top: 0,
         left: (width - VIDEO_WIDTH) / 2,
         alignItems: 'center',
         marginBottom: 0,
         opacity: fadeAnim,
-        transform: [{
-          translateY: slideAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [600, 0],
-            extrapolate: 'clamp',
-          })
-        }],
+        // Slide in from below after text slides up
+        transform: [
+          {
+            translateY: videoSlideAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [Dimensions.get('window').height, 290],
+            })
+          }
+        ],
       }}>
         {videoUri ? (
           <Video
@@ -199,21 +227,6 @@ const OnboardingScanDemo = () => {
           <Text style={{ color: 'red', marginTop: 40 }}>No video URI loaded</Text>
         )}
       </Animated.View>
-
-      {/* Continue button under subtitle, fades in after 1.5s */}
-      {showContinue && (
-        <Animated.View style={{ opacity: continueFade, marginTop: 35, alignItems: 'center', alignSelf: 'center' }}>
-          <TouchableOpacity style={styles.continueButton} onPress={() => navigation.navigate('OnboardingAddMenu' as any, { preloadedVideoUri: videoUri, fromHelp })}>
-            <Text style={styles.continueButtonText}>Continue →</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-      {/* Skip button in top right if fromHelp */}
-      {fromHelp && (
-        <TouchableOpacity style={{ position: 'absolute', top: 40, right: 24, zIndex: 20 }} onPress={handleSkip}>
-          <Text style={{ color: '#DA291C', fontSize: 18, fontFamily: 'ReadexPro-Bold' }}>Skip</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 };
@@ -250,7 +263,7 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   continueButton: {
-    marginTop: 150,
+    marginTop: -25,
     backgroundColor: '#fff',
     borderRadius: 8,
     paddingVertical: 0,

@@ -82,12 +82,28 @@ export async function processCameraImage(
       };
     }
 
-    // Return menu items with source information
+    // Return menu items with only name and allergenIngredients
     return {
-      menuItems: result.map((item) => ({
-        name: item.name,
-        allergens: item.allergens,
-      })),
+      menuItems: result.map((item) => {
+        // Normalize allergenIngredients to ensure all values are arrays of strings
+        let normalizedAllergenIngredients: Record<string, string[]> = {};
+        if (item.allergenIngredients && typeof item.allergenIngredients === 'object') {
+          for (const key in item.allergenIngredients) {
+            const val = item.allergenIngredients[key];
+            if (Array.isArray(val)) {
+              normalizedAllergenIngredients[key] = val.flat().map(String);
+            } else if (typeof val === 'string') {
+              normalizedAllergenIngredients[key] = [val];
+            } else {
+              normalizedAllergenIngredients[key] = [];
+            }
+          }
+        }
+        return {
+          name: item.name,
+          allergenIngredients: normalizedAllergenIngredients,
+        };
+      }),
       source: "camera" as const,
     };
   } catch (error) {
@@ -130,7 +146,7 @@ export async function convertToBase64(filePath: string): Promise<string> {
 export async function processImageWithGemini(
   base64Image: string | null
 ): Promise<
-  | Array<{ name: string; allergens: string[]; certainty: number }>
+  | Array<{ name: string; allergens: string[]; certainty: number; allergenIngredients?: Record<string, string[]> }>
   | { error: true; message: string }
 > {
   try {
@@ -147,39 +163,7 @@ export async function processImageWithGemini(
           role: "user",
           parts: [
             {
-              text: `You are analyzing an image of a restaurant menu.
-                  Your job is to extract each **menu item** as an object with two fields:
-                  1. "name": the name of the menu item  
-                  2. "allergens": an array of allergens (like gluten, egg, soy, etc.)
-
-                  Output must be a **valid JSON array** like:
-                  [
-                    {
-                      "name": "Whopper",
-                      "allergens": ["gluten", "soy", "egg"],
-                      "certainty": 0.95
-                    },
-                    {
-                      "name": "French Fries",
-                      "allergens": [],
-                      "certainty": 0.7
-                    }
-                  ]
-
-                  Rules:
-                  - Only output allergens as one of these exact strings: dairy, eggs, fish, shellfish, treenuts, peanuts, gluten, soy, sesame. Do not output any other allergen names.
-                  - For example, if an item contains milk or cheese, output 'dairy'.
-                  - If an item contains wheat, output 'gluten'.
-                  - If ingredients are visible, extract allergens from them and assign a high certainty
-                  - If ingredients are not visible, use YOUR food knowledge of fast food items (like those from Burger King, McDonald's, Chick-fil-A) to infer allergens and assign a moderate certainty. Assign high certainty if very sure it includes those allergens.
-                  - If you are unsure, assign a lower certainty
-                  - DO NOT guess. Only use ingredients shown or well-known recipes of that restaurant.
-                  - If you still can't infer allergens, return an empty array []
-                  - Accuracy is critical for allergic individuals. Be as precise as possible.
-                  - If there are any typos of general food items from the common restaurants then you can use your general knowledge to correct it (e.g. use "Hamburger" for Burger King if there's a processing error of "Hashburger" or "Hanburger")
-                  - If a menu item is under a category like "Pizza", "Burgers", "Combos", or "Country Dinners", assume it inherits base ingredients typical of that category unless stated otherwise. For example, if a dish is under "BBQ" and contains pulled pork or ribs, assume BBQ sauce is used and may contain gluten.
-                  - Do not treat menu items as standalone unless they appear outside a category.
-                  - No markdown, no extra text — just raw JSON`,
+              text: `You are analyzing an image of a restaurant menu.\nYour job is to extract each **menu item** as an object with these fields:\n1. \"name\": the name of the menu item\n2. \"allergenIngredients\": an object mapping each allergen to the ingredient(s) that triggered it (e.g., { \"dairy\": [\"cheese\"], \"gluten\": [\"bun\"] }). Only include allergens and their triggering ingredients.\n\nOutput must be a **valid JSON array** like:\n[\n  {\n    \"name\": \"Cheeseburger\",\n    \"allergenIngredients\": {\n      \"dairy\": [\"cheese\"],\n      \"gluten\": [\"bun\"],\n      \"egg\": [\"mayo\"]\n    }\n  },\n  {\n    \"name\": \"French Fries\",\n    \"allergenIngredients\": {}\n  }\n]\n\nRules:\n- Only output the fields 'name' and 'allergenIngredients' for each menu item.\n- Only include allergens as keys in 'allergenIngredients' if you are confident they are present.\n- No markdown, no extra text — just raw JSON`,
             },
             {
               inlineData: {
@@ -198,10 +182,24 @@ export async function processImageWithGemini(
 
     // Extract Gemini response and parse the JSON data safely
     const rawText = await response.response.text();
+    console.log('--- GEMINI RAW RESPONSE ---');
+    console.log(rawText);
     const cleanText = rawText.replace(/```json|```/g, "").trim();
+    console.log('--- GEMINI CLEANED TEXT ---');
+    console.log(cleanText);
 
     try {
       const allergenData = JSON.parse(cleanText);
+      console.log('--- GEMINI PARSED DATA ---');
+      // Use JSON.stringify to show full nested arrays/objects
+      console.log(JSON.stringify(allergenData, null, 2));
+      if (Array.isArray(allergenData)) {
+        allergenData.forEach((item, idx) => {
+          if (!item.ingredients && !item.ingredientList) {
+            console.warn(`Menu item at index ${idx} is missing ingredients/ingredientList:`, item);
+          }
+        });
+      }
       if (!allergenData) {
         return {
           error: true,
@@ -209,7 +207,6 @@ export async function processImageWithGemini(
         };
       }
 
-      console.log(allergenData);
       return allergenData;
     } catch (error) {
       console.log("Error in processing:", error);

@@ -145,11 +145,12 @@ const CameraScreen = () => {
       )}
       {/* X button in top left */}
       <TouchableOpacity
-        style={{ position: 'absolute', top: 40, left: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 20, padding: 6 }}
+        style={{ position: 'absolute', top: 80, left: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 20, padding: 6 }}
         onPress={() => {
           navigation.goBack();
         }}
         accessibilityLabel="Close camera"
+        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
       >
         <Feather name="x" size={28} color="#222" />
       </TouchableOpacity>
@@ -222,10 +223,10 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   centerBox: {
-    width: 360,
-    height: 650,
+    width: 260,
+    height: 340,
     backgroundColor: 'transparent',
-    borderRadius: 24,
+    borderRadius: 18,
     borderWidth: 0,
     position: 'relative',
     justifyContent: 'center',
@@ -233,37 +234,37 @@ const styles = StyleSheet.create({
   },
   corner: {
     position: 'absolute',
-    width: 36,
-    height: 36,
+    width: 28,
+    height: 28,
     borderColor: 'rgba(255,255,255,0.5)',
   },
   cornerTL: {
-    top: -15,
+    top: -30,
     left: 0,
-    borderTopWidth: 8,
-    borderLeftWidth: 8,
-    borderTopLeftRadius: 16,
+    borderTopWidth: 6,
+    borderLeftWidth: 6,
+    borderTopLeftRadius: 8,
   },
   cornerTR: {
-    top: -15,
+    top: -30,
     right: 0,
-    borderTopWidth: 8,
-    borderRightWidth: 8,
-    borderTopRightRadius: 16,
+    borderTopWidth: 6,
+    borderRightWidth: 6,
+    borderTopRightRadius: 8,
   },
   cornerBL: {
     bottom: 30,
     left: 0,
-    borderBottomWidth: 8,
-    borderLeftWidth: 8,
-    borderBottomLeftRadius: 16,
+    borderBottomWidth: 6,
+    borderLeftWidth: 6,
+    borderBottomLeftRadius: 8,
   },
   cornerBR: {
     bottom: 30,
     right: 0,
-    borderBottomWidth: 8,
-    borderRightWidth: 8,
-    borderBottomRightRadius: 16,
+    borderBottomWidth: 6,
+    borderRightWidth: 6,
+    borderBottomRightRadius: 8,
   },
   bottomBarRow: {
     position: 'absolute',
