@@ -12,13 +12,16 @@ import {
   Platform,
 } from 'react-native';
 import { StatusBar } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { FontAwesome5 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Location from 'expo-location';
 import { Camera } from 'expo-camera';
 import { BlurView } from 'expo-blur';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../screens/types/navigation';
+import { Video, ResizeMode } from 'expo-av';
 
 const { width, height } = Dimensions.get('window');
 
@@ -288,7 +291,7 @@ const OnboardingAddMenu = () => {
   const cardAnim = useRef(new Animated.Value(0)).current;
   const [cardActive, setCardActive] = useState(false); // ensure card stays visible
   const [continueVisible, setContinueVisible] = useState(true); // track if continue button should stay visible
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [permissionStep, setPermissionStep] = useState<'camera' | 'location' | 'done'>('camera');
   const [cameraGranted, setCameraGranted] = useState(false);
@@ -300,6 +303,9 @@ const OnboardingAddMenu = () => {
   const [animationPaused, setAnimationPaused] = useState(false);
   const [textVisible, setTextVisible] = useState(true);
   const [textFadeAnim] = useState(new Animated.Value(1));
+  const route = useRoute();
+  const fromHelp = (route as any).params?.fromHelp;
+  const preloadedVideoUri = (route as any).params?.preloadedVideoUri;
 
   // Animate in/out for each step
   useEffect(() => {
@@ -445,9 +451,10 @@ const OnboardingAddMenu = () => {
     }).start(() => {
       setTextVisible(false); // Hide them after animation
     });
-  
     setContinueVisible(false); // Hide continue button immediately
     setAnimationPaused(true);
+    // Clear any animation timeouts/loops
+    // (If you have refs to timeouts, clear them here)
     setShowPermissionModal(true);
     setTimeout(() => {
       setTimeout(() => {
@@ -471,6 +478,11 @@ const OnboardingAddMenu = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPermissionModal, permissionStep]);
+
+  // Skip button handler
+  const handleSkip = () => {
+    navigation.navigate('Home');
+  };
 
   return (
     <View style={styles.container}>
@@ -544,6 +556,22 @@ const OnboardingAddMenu = () => {
           </View>
         </View>
       </Modal>
+      {/* Skip button in top right if fromHelp */}
+      {fromHelp && (
+        <TouchableOpacity style={{ position: 'absolute', top: 40, right: 24, zIndex: 20 }} onPress={handleSkip}>
+          <Text style={{ color: '#DA291C', fontSize: 18, fontFamily: 'ReadexPro-Bold' }}>Skip</Text>
+        </TouchableOpacity>
+      )}
+      {/* Preload video invisibly for caching */}
+      {preloadedVideoUri && (
+        <Video
+          source={{ uri: preloadedVideoUri }}
+          style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
+          isMuted
+          shouldPlay={false}
+          resizeMode={ResizeMode.CONTAIN}
+        />
+      )}
     </View>
   );
 };

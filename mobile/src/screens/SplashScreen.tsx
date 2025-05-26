@@ -36,7 +36,7 @@ const SplashScreen = () => {
         duration: 500,
         useNativeDriver: true,
       }).start(() => {
-        (navigation as any).reset({ index: 0, routes: [{ name: 'Home' }] });
+        (navigation as any).reset({ index: 0, routes: [{ name: 'Home', params: { fadeIn: true } }] });
       });
     }, 2000);
     return () => clearTimeout(timeout);

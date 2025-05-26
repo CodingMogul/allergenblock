@@ -8,6 +8,6 @@ export type RootStackParamList = {
   ProfileSetup: { canGoBack?: boolean; fromOnboarding?: boolean } | undefined;
   Welcome: undefined;
   Camera: undefined;
-  OnboardingCarouselDemo: undefined;
+  OnboardingCarouselDemo: { preloadedVideoUri?: string | null };
   OnboardingScanDemo: undefined;
 }; 

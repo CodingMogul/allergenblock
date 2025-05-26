@@ -21,8 +21,11 @@ const Welcome = () => {
   const circleAnim = useRef(new Animated.Value(0)).current;
   const peanutAnim = useRef(new Animated.Value(56)).current; // peanut path length
   const lineAnim = useRef(new Animated.Value(28)).current;   // line path length
+  const hasAnimated = useRef(false);
 
   useEffect(() => {
+    if (hasAnimated.current) return;
+    hasAnimated.current = true;
     // Animate the red circle
     Animated.timing(circleAnim, {
       toValue: 1,
@@ -56,9 +59,13 @@ const Welcome = () => {
     return () => {};
   }, [circleAnim, peanutAnim, lineAnim, navigation]);
 
-  const circleSize = circleAnim.interpolate({
+  const circleScale = circleAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, DIAGONAL * 1.5],
+    outputRange: [0, 1.5],
+  });
+  const circleOpacity = circleAnim.interpolate({
+    inputRange: [0, 0.1, 1],
+    outputRange: [0, 0.7, 1],
   });
 
   return (
@@ -68,15 +75,23 @@ const Welcome = () => {
         style={[
           styles.animatedCircle,
           {
-            width: circleSize,
-            height: circleSize,
-            borderRadius: Animated.divide(circleSize, 2),
+            opacity: circleOpacity,
+            transform: [
+              { scale: circleScale },
+              { translateX: -DIAGONAL * 0.75 },
+              { translateY: -DIAGONAL * 0.75 },
+            ],
+            width: DIAGONAL * 1.5,
+            height: DIAGONAL * 1.5,
+            borderRadius: DIAGONAL * 0.75,
             backgroundColor: RED,
+            left: '50%',
+            top: '50%',
           },
         ]}
       />
       {/* Animated peanut and line above the text */}
-      <Svg width={160} height={160} viewBox="0 0 24 24" style={{ marginBottom: 16 }}>
+      <Svg width={160} height={160} viewBox="0 0 24 24" style={{ marginBottom: 16, zIndex: 2 }}>
         <AnimatedPath
           d="M12 2c2.5 0 5 2 5 5c0 1.13 -0.37 2.16 -1 3c-0.28 0.38 -0.5 1 -0.5 1.5c0 0.5 0.2 0.91 0.5 1.23c0.93 0.98 1.5 2.31 1.5 3.77c0 3.04 -2.46 5.5 -5.5 5.5c-3.04 0 -5.5 -2.46 -5.5 -5.5c0 -1.46 0.57 -2.79 1.5 -3.77c0.3 -0.32 0.5 -0.73 0.5 -1.23c0 -0.5 -0.22 -1.12 -0.5 -1.5c-0.63 -0.84 -1 -1.87 -1 -3c0 -2.76 2 -5 5 -5Z"
           stroke="#fff"

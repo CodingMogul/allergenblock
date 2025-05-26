@@ -36,7 +36,8 @@
       "LOGODEV_API_KEY": "sk_f35SeYGwQYi5SrlPM5948g"
     },
     "plugins": [
-      "expo-video"
+      "expo-video",
+      "expo-asset"
     ]
   }
 }

@@ -13,8 +13,11 @@ import Bread from '../../assets/icons/Bread.svg';
 import Beans from '../../assets/icons/Beans.svg';
 import Sesame from '../../assets/icons/Sesame.svg';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../screens/types/navigation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Asset } from 'expo-asset';
+import { Video, ResizeMode } from 'expo-av';
 
 const ALLERGENS = [
   { id: 'dairy', name: 'Dairy' },
@@ -56,14 +59,18 @@ export default function OnboardingCarouselDemo() {
   const carouselRef = useRef<any>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [highlighted, setHighlighted] = useState(true);
-  const navigation = useNavigation();
+  const continueFade = useRef(new Animated.Value(0)).current;
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
   const preloadedVideoUri = (route as any).params?.preloadedVideoUri;
+  const [videoReady, setVideoReady] = useState(false);
+  const [minTimeElapsed, setMinTimeElapsed] = useState(false);
+  const [videoUri, setVideoUri] = useState<string | null>(preloadedVideoUri || null);
+  const videoRef = useRef<any>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const isMountedRef = useRef(true);
   const hapticTimeouts: NodeJS.Timeout[] = [];
-  const [videoReady, setVideoReady] = useState(false);
-  const [videoUri, setVideoUri] = useState<string | null>(null);
+  const fromHelp = (route as any).params?.fromHelp;
 
   const cancelLoop = () => {
     isMountedRef.current = false;
@@ -106,19 +113,45 @@ export default function OnboardingCarouselDemo() {
     return cancelLoop;
   }, []);
 
+  // If not preloaded, load the video asset
   useEffect(() => {
-    Asset.loadAsync(videoModule).then(() => {
-      const asset = Asset.fromModule(videoModule);
-      setVideoUri(asset.uri);
-      setVideoReady(true);
-    });
+    if (!videoUri) {
+      const videoModule = require('../assets/OnboardTakePhoto.mp4');
+      Asset.loadAsync(videoModule).then(() => {
+        const asset = Asset.fromModule(videoModule);
+        setVideoUri(asset.uri);
+      });
+    }
   }, []);
+
+  // Set minTimeElapsed after 4.4 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, 4400);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Fade in continue button only when both videoReady and minTimeElapsed
+  useEffect(() => {
+    if (videoReady && minTimeElapsed) {
+      Animated.timing(continueFade, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [videoReady, minTimeElapsed]);
 
   const handleContinue = () => {
     cancelLoop();
     setTimeout(() => {
-      (navigation as any).navigate('OnboardingScanDemo', { preloadedVideoUri });
+      (navigation as any).navigate('OnboardingScanDemo', { preloadedVideoUri: videoUri, fromHelp });
     }, 50);
+  };
+
+  const handleSkip = () => {
+    navigation.navigate('Home');
   };
 
   return (
@@ -184,9 +217,28 @@ export default function OnboardingCarouselDemo() {
           pointerEvents="none"
         />
       </View>
-      <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-        <Text style={styles.continueButtonText}>Continue →</Text>
-      </TouchableOpacity>
+      <Animated.View style={{ opacity: continueFade }}>
+        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+          <Text style={styles.continueButtonText}>Continue →</Text>
+        </TouchableOpacity>
+      </Animated.View>
+      {/* Preload video invisibly for caching and set videoReady */}
+      {videoUri && (
+        <Video
+          source={{ uri: videoUri }}
+          style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
+          isMuted
+          shouldPlay={false}
+          resizeMode={ResizeMode.CONTAIN}
+          onLoad={() => setVideoReady(true)}
+        />
+      )}
+      {/* Skip button in top right if fromHelp */}
+      {fromHelp && (
+        <TouchableOpacity style={{ position: 'absolute', top: 40, right: 24, zIndex: 100 }} onPress={handleSkip}>
+          <Text style={{ color: '#DA291C', fontSize: 18, fontFamily: 'ReadexPro-Bold' }}>Skip</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

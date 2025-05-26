@@ -8,113 +8,130 @@ import {
   Animated,
   Image,
   Easing,
+  ActivityIndicator,
 } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../screens/types/navigation';
 import { Asset } from 'expo-asset';
+import { Video, ResizeMode } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 const VIDEO_WIDTH = Math.min(width * 0.9, 360);
 const VIDEO_HEIGHT = VIDEO_WIDTH * (934 / 475);
 
 const OnboardingScanDemo = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
   const [loading, setLoading] = useState(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(600)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
   const line1Fade = useRef(new Animated.Value(0)).current;
   const line2Fade = useRef(new Animated.Value(0)).current;
   const [videoReady, setVideoReady] = useState(false);
   const [showContinue, setShowContinue] = useState(false);
   const continueFade = useRef(new Animated.Value(0)).current;
+  const [slideUpComplete, setSlideUpComplete] = useState(false);
   const videoRef = useRef<any>(null);
   const [showText, setShowText] = useState(true);
 
   // Animation state
+  const [isReady, setIsReady] = useState(false);
+  const visibleVideoRef = useRef<any>(null);
   const titleFade = useRef(new Animated.Value(0)).current;
   const subtitleFade = useRef(new Animated.Value(0)).current;
-  const textSlide = useRef(new Animated.Value(0)).current;
-  const videoSlide = useRef(new Animated.Value(600)).current;
+  const [subtitleDone, setSubtitleDone] = useState(false);
 
   const preloadedVideoUri = (route as any).params?.preloadedVideoUri;
-  const preloadedVideoPosition = (route as any).params?.preloadedVideoPosition || 0;
-  const videoUri = preloadedVideoUri || Asset.fromModule(require('../assets/OnboardTakePhoto.mp4')).uri;
+  const [videoUri, setVideoUri] = useState<string | null>(preloadedVideoUri || null);
+  const fromHelp = (route as any).params?.fromHelp;
 
-  // Seek to preloaded position on load
-  const onVideoLoad = async () => {
-    setVideoReady(true);
-    if (videoRef.current && preloadedVideoPosition > 0) {
-      try {
-        await videoRef.current.setPositionAsync(preloadedVideoPosition, { toleranceMillis: 100 });
-        await videoRef.current.playAsync();
-      } catch (e) {}
-    }
-  };
-
-  // Animation sequence
+  // If not preloaded, load the video asset
   useEffect(() => {
-    if (videoReady) {
-      setLoading(false);
-      // Delay the whole sequence by 1.5s
-      setTimeout(() => {
-        // 1. Title fade in (center, quicker)
-        Animated.timing(titleFade, {
+    if (!videoUri) {
+      const videoModule = require('../assets/OnboardTakePhoto.mp4');
+      Asset.loadAsync(videoModule).then(() => {
+        const asset = Asset.fromModule(videoModule);
+        setVideoUri(asset.uri);
+      });
+    }
+  }, []);
+
+  // Animation sequence: title fade in, then subtitle (no slide up here)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      Animated.timing(titleFade, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }).start(() => {
+        Animated.timing(subtitleFade, {
           toValue: 1,
-          duration: 350,
+          duration: 1200,
           useNativeDriver: true,
         }).start(() => {
-          // 2. Hold title on screen longer before subtitle fades in
-          setTimeout(() => {
-            Animated.timing(subtitleFade, {
-              toValue: 1,
-              duration: 1100,
-              useNativeDriver: true,
-            }).start(() => {
-              // 3. Pause, then slide both text and video up together
-              setTimeout(() => {
-                Animated.timing(textSlide, {
-                  toValue: 1,
-                  duration: 800,
-                  easing: Easing.inOut(Easing.exp),
-                  useNativeDriver: true,
-                }).start(() => {
-                  // 4. Wait 0.5s, then show continue button
-                  setTimeout(() => {
-                    setShowContinue(true);
-                    Animated.timing(continueFade, {
-                      toValue: 1,
-                      duration: 400,
-                      useNativeDriver: true,
-                    }).start();
-                  }, 500);
-                });
-              }, 200);
-            });
-          }, 1200); // Hold title for 1200ms before subtitle fade in
+          setSubtitleDone(true);
         });
-      }, 1500);
-    }
-  }, [videoReady]);
+      });
+    }, 2750);
+    return () => clearTimeout(timer);
+  }, []);
 
-  // Fade in the video when ready
+  // Slide up both video and text only when both subtitle is done and video is ready
   useEffect(() => {
-    if (videoReady) {
+    if (isReady) {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
       }).start();
     }
-  }, [videoReady]);
+  }, [isReady]);
+
+  useEffect(() => {
+    if (subtitleDone && isReady) {
+      const timer = setTimeout(() => {
+        Animated.timing(slideAnim, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.exp),
+          useNativeDriver: true,
+        }).start(() => setSlideUpComplete(true));
+      }, 2750);
+      return () => clearTimeout(timer);
+    }
+  }, [subtitleDone, isReady]);
+
+  // Show continue button 1.5s after slide-up animation completes
+  useEffect(() => {
+    if (slideUpComplete) {
+      const timer = setTimeout(() => {
+        setShowContinue(true);
+        Animated.timing(continueFade, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }).start();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [slideUpComplete]);
 
   // Pause 1.5s at end, then loop
   const handleVideoStatus = async (status: any) => {
-    if (status.didJustFinish && videoRef.current) {
-      await videoRef.current.pauseAsync();
+    if (status.didJustFinish && visibleVideoRef.current) {
+      await visibleVideoRef.current.pauseAsync();
       // Do not restart playback, just leave paused
     }
   };
+
+  // Skip button handler
+  const handleSkip = () => {
+    navigation.navigate('Home');
+  };
+
+  // Debug: log videoUri
+  console.log('OnboardingScanDemo videoUri', videoUri);
 
   return (
     <View style={styles.container}>
@@ -132,7 +149,7 @@ const OnboardingScanDemo = () => {
               opacity: titleFade,
               transform: [
                 {
-                  translateY: textSlide.interpolate({
+                  translateY: slideAnim.interpolate({
                     inputRange: [0, 1],
                     outputRange: [ (Dimensions.get('window').height - 120) / 2, 60 ],
                   })
@@ -154,66 +171,49 @@ const OnboardingScanDemo = () => {
         position: 'absolute',
         top: 290,
         left: (width - VIDEO_WIDTH) / 2,
+        alignItems: 'center',
+        marginBottom: 0,
         opacity: fadeAnim,
         transform: [{
-          translateY: textSlide.interpolate({
+          translateY: slideAnim.interpolate({
             inputRange: [0, 1],
             outputRange: [600, 0],
             extrapolate: 'clamp',
           })
         }],
-        alignItems: 'center',
-        marginBottom: 0,
       }}>
-        {videoUri && (
+        {videoUri ? (
           <Video
-            ref={videoRef}
+            ref={visibleVideoRef}
             source={{ uri: videoUri }}
             style={styles.video}
             resizeMode={ResizeMode.CONTAIN}
             isLooping={false}
             isMuted
             shouldPlay={true}
-            onLoad={onVideoLoad}
+            onLoad={() => setIsReady(true)}
             onPlaybackStatusUpdate={handleVideoStatus}
             onError={(e) => console.log('Video error', e)}
           />
+        ) : (
+          <Text style={{ color: 'red', marginTop: 40 }}>No video URI loaded</Text>
         )}
       </Animated.View>
 
-      {/* Continue Button under subtitle, inside animated text group */}
-      <Animated.View
-        style={{
-          opacity: continueFade,
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          alignItems: 'center',
-          zIndex: 10,
-          transform: [
-            {
-              translateY: textSlide.interpolate({
-                inputRange: [0, 1],
-                outputRange: [ (Dimensions.get('window').height - 120) / 2 + 120, 240 ],
-                extrapolate: 'clamp',
-              })
-            }
-          ],
-        }}
-        pointerEvents={showContinue ? 'auto' : 'none'}
-      >
-        {showContinue && (
-          <TouchableOpacity
-            style={styles.continueButton}
-            onPress={() => {
-              setShowText(false);
-              (navigation as any).navigate('OnboardingAddMenu', { fromOnboarding: true });
-            }}
-          >
+      {/* Continue button under subtitle, fades in after 1.5s */}
+      {showContinue && (
+        <Animated.View style={{ opacity: continueFade, marginTop: 35, alignItems: 'center', alignSelf: 'center' }}>
+          <TouchableOpacity style={styles.continueButton} onPress={() => navigation.navigate('OnboardingAddMenu' as any, { preloadedVideoUri: videoUri, fromHelp })}>
             <Text style={styles.continueButtonText}>Continue →</Text>
           </TouchableOpacity>
-        )}
-      </Animated.View>
+        </Animated.View>
+      )}
+      {/* Skip button in top right if fromHelp */}
+      {fromHelp && (
+        <TouchableOpacity style={{ position: 'absolute', top: 40, right: 24, zIndex: 20 }} onPress={handleSkip}>
+          <Text style={{ color: '#DA291C', fontSize: 18, fontFamily: 'ReadexPro-Bold' }}>Skip</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   continueButton: {
-    marginTop: 20,
+    marginTop: 150,
     backgroundColor: '#fff',
     borderRadius: 8,
     paddingVertical: 0,

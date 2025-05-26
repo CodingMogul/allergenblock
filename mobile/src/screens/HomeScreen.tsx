@@ -932,117 +932,107 @@ const HomeScreen = () => {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <GestureHandlerRootView style={styles.container} pointerEvents="auto">
-        {/* Overlays should be rendered last so they are above all content */}
-        {/* Main content */}
-        <FlatList
-          pointerEvents="auto"
-          data={filteredRestaurants}
-          renderItem={({ item }) => {
-            let distance: number | null = null;
-            const lat = item.location?.coordinates?.[1] ?? 0;
-            const lng = item.location?.coordinates?.[0] ?? 0;
-            if (locationFilter) {
-              distance = getDistance(
-                locationFilter.lat,
-                locationFilter.lng,
-                lat,
-                lng
+      <Animated.View style={[styles.container, showHomeFadeIn ? { opacity: homeFadeAnim } : {}]}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          {/* Overlays should be rendered last so they are above all content */}
+          {/* Main content */}
+          <FlatList
+            pointerEvents="auto"
+            data={filteredRestaurants}
+            renderItem={({ item }) => {
+              let distance: number | null = null;
+              const lat = item.location?.coordinates?.[1] ?? 0;
+              const lng = item.location?.coordinates?.[0] ?? 0;
+              if (locationFilter) {
+                distance = getDistance(
+                  locationFilter.lat,
+                  locationFilter.lng,
+                  lat,
+                  lng
+                );
+              }
+              const isNew = newlyAddedRestaurantId === item.id;
+              return (
+                <RestaurantCard
+                  key={item.id + '-' + (item.apimatch || 'custom')}
+                  item={item}
+                  isNew={isNew}
+                  cardAnim={cardAnim}
+                  locationFilter={locationFilter}
+                  distance={distance}
+                  handlePress={handlePress}
+                  handleLongPress={handleLongPress}
+                />
               );
-            }
-            const isNew = newlyAddedRestaurantId === item.id;
-            return (
-              <RestaurantCard
-                key={item.id + '-' + (item.apimatch || 'custom')}
-                item={item}
-                isNew={isNew}
-                cardAnim={cardAnim}
-                locationFilter={locationFilter}
-                distance={distance}
-                handlePress={handlePress}
-                handleLongPress={handleLongPress}
-              />
-            );
-          }}
-          keyExtractor={item => item.id + '-' + (item.apimatch || 'custom')}
-          contentContainerStyle={[styles.listContainer, { paddingHorizontal: 20 }]}
-          ListHeaderComponent={listHeader}
-          ListFooterComponent={loading ? () => <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text> : null}
-        />
+            }}
+            keyExtractor={item => item.id + '-' + (item.apimatch || 'custom')}
+            contentContainerStyle={[styles.listContainer, { paddingHorizontal: 20 }]}
+            ListHeaderComponent={listHeader}
+            ListFooterComponent={loading ? () => <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text> : null}
+          />
 
-        <View style={styles.bottomBar}>
-          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
-            <TouchableOpacity
-              style={styles.iconButton}
-              onPress={takePhoto}
-              accessibilityLabel="Add menu photo"
-            >
-              <Feather name="camera" size={36} color="#222" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Loading Overlay - render last so it's above everything */}
-        {showLoadingOverlay && !showNoMenuModal && (
-          <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
-            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <AnimatedMagnifierPeanut />
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 32 }}>
-                <Text style={{ fontSize: 22, color: '#DA291C', fontWeight: 'bold', letterSpacing: 1 }}>Finding allergens</Text>
-                <AnimatedDots />
-              </View>
-              {/* X button to cancel loading */}
+          <View style={styles.bottomBar}>
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
               <TouchableOpacity
-                style={{ marginTop: 66, alignItems: 'center' }}
-                onPress={() => setShowLoadingOverlay(false)}
-                accessibilityLabel="Cancel finding allergens"
+                style={styles.iconButton}
+                onPress={takePhoto}
+                accessibilityLabel="Add menu photo"
               >
-                <Text style={{ color: '#222', fontSize: 32, fontWeight: 'bold' }}>✕</Text>
+                <Feather name="camera" size={36} color="#222" />
               </TouchableOpacity>
             </View>
           </View>
-        )}
 
-        {showSuccessOverlay && (
-          <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, opacity: successOverlayAnim }]} pointerEvents="auto">
-            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <FadeInCheck visible={showSuccessOverlay} />
-            </View>
-          </Animated.View>
-        )}
-
-        {showNoMenuModal && (
-          <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
-            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Animated.View style={{ position: 'absolute', opacity: magnifierFadeAnim }}>
+          {/* Loading Overlay - render last so it's above everything */}
+          {showLoadingOverlay && !showNoMenuModal && (
+            <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
+              <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                 <AnimatedMagnifierPeanut />
-              </Animated.View>
-              <Animated.View style={{ position: 'absolute', opacity: cautionFadeAnim }}>
-                <AnimatedCaution />
-              </Animated.View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 32 }}>
+                  <Text style={{ fontSize: 22, color: '#DA291C', fontWeight: 'bold', letterSpacing: 1 }}>Finding allergens</Text>
+                  <AnimatedDots />
+                </View>
+                {/* X button to cancel loading */}
+                <TouchableOpacity
+                  style={{ marginTop: 66, alignItems: 'center' }}
+                  onPress={() => setShowLoadingOverlay(false)}
+                  accessibilityLabel="Cancel finding allergens"
+                >
+                  <Text style={{ color: '#222', fontSize: 32, fontWeight: 'bold' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </Animated.View>
-        )}
+          )}
 
-        <Modal
-          visible={restaurantNameModalVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => {
-            setRestaurantNameModalVisible(false);
-            setPendingImageBase64(null);
-            setPendingImageUri(null);
-            setPendingLocation(null);
-            setRestaurantNameInput('');
-            navigation.navigate('Home');
-          }}
-        >
-          <Pressable
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
-            onPress={() => {
+          {showSuccessOverlay && (
+            <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, opacity: successOverlayAnim }]} pointerEvents="auto">
+              <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <FadeInCheck visible={showSuccessOverlay} />
+              </View>
+            </Animated.View>
+          )}
+
+          {showNoMenuModal && (
+            <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
+              <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Animated.View style={{ position: 'absolute', opacity: magnifierFadeAnim }}>
+                  <AnimatedMagnifierPeanut />
+                </Animated.View>
+                <Animated.View style={{ position: 'absolute', opacity: cautionFadeAnim }}>
+                  <AnimatedCaution />
+                </Animated.View>
+              </View>
+            </Animated.View>
+          )}
+
+          <Modal
+            visible={restaurantNameModalVisible}
+            animationType="slide"
+            transparent
+            onRequestClose={() => {
               setRestaurantNameModalVisible(false);
               setPendingImageBase64(null);
               setPendingImageUri(null);
@@ -1052,229 +1042,241 @@ const HomeScreen = () => {
             }}
           >
             <Pressable
-              style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
-              onPress={(e) => e.stopPropagation()}
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
+              onPress={() => {
+                setRestaurantNameModalVisible(false);
+                setPendingImageBase64(null);
+                setPendingImageUri(null);
+                setPendingLocation(null);
+                setRestaurantNameInput('');
+                navigation.navigate('Home');
+              }}
             >
-              <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Enter Restaurant Name</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16, fontFamily: 'ReadexPro-Regular' }}
-                placeholder="Restaurant Name"
-                value={restaurantNameInput}
-                onChangeText={setRestaurantNameInput}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={{ backgroundColor: '#DA291C', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center' }}
-                onPress={handleRestaurantNameSubmit}
+              <Pressable
+                style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
+                onPress={(e) => e.stopPropagation()}
               >
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Submit</Text>
-              </TouchableOpacity>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Enter Restaurant Name</Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16, fontFamily: 'ReadexPro-Regular' }}
+                  placeholder="Restaurant Name"
+                  value={restaurantNameInput}
+                  onChangeText={setRestaurantNameInput}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={{ backgroundColor: '#DA291C', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center' }}
+                  onPress={handleRestaurantNameSubmit}
+                >
+                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Submit</Text>
+                </TouchableOpacity>
+              </Pressable>
             </Pressable>
-          </Pressable>
-        </Modal>
+          </Modal>
 
-        <Modal
-          visible={deleteModalVisible}
-          animationType="fade"
-          transparent
-          onRequestClose={closeAllModals}
-        >
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>
-                Apply Changes?
-              </Text>
-              <Text style={{ fontSize: 16, marginBottom: 18, color: '#444', textAlign: 'center' }}>
-                What would you like to do with this restaurant?
-              </Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
-                  onPress={closeAllModals}
-                >
-                  <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
-                  onPress={() => {
-                    closeAllModals();
-                    setTimeout(() => setConfirmDeleteVisible(true), 10);
-                  }}
-                  disabled={deleting}
-                >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
-                  onPress={() => {
-                    closeAllModals();
-                    if (restaurantToDelete) handleEditRestaurant(restaurantToDelete);
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Edit</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Confirm Delete Modal */}
-        <Modal
-          visible={confirmDeleteVisible}
-          animationType="fade"
-          transparent
-          onRequestClose={closeAllModals}
-        >
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
-              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>
-                Permanently Delete?
-              </Text>
-              <Text style={{ fontSize: 16, marginBottom: 18, color: '#444', textAlign: 'center' }}>
-                This will permanently delete this restaurant. Are you sure?
-              </Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
-                  onPress={closeAllModals}
-                >
-                  <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
-                  onPress={async () => {
-                    closeAllModals();
-                    setTimeout(async () => { await handleDeleteRestaurantWithUndo(); }, 10);
-                  }}
-                  disabled={deleting}
-                >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
-        {/* Edit Restaurant Name Modal */}
-        <Modal
-          visible={editModalVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={closeAllModals}
-        >
-          <Pressable
-            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
-            onPress={closeAllModals}
-          >
-            <Pressable
-              style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
-              onPress={(e) => e.stopPropagation()}
-            >
-              <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Apply Changes?</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16, fontFamily: 'ReadexPro-Regular' }}
-                placeholder="Restaurant Name"
-                value={editNameInput}
-                onChangeText={setEditNameInput}
-                autoFocus
-                editable={!editSaving}
-              />
-              <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between' }}>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
-                  onPress={closeAllModals}
-                  disabled={editSaving}
-                >
-                  <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, flex: 1, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
-                  onPress={handleEditNameSubmit}
-                  disabled={editSaving}
-                >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{editSaving ? 'Saving...' : 'Apply'}</Text>
-                </TouchableOpacity>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
-
-        {/* Home fade-in overlay */}
-        {showHomeFadeIn && (
-          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: homeFadeAnim, zIndex: 9998 }]} pointerEvents="none" />
-        )}
-
-        {/* Undo Snackbar/Modal */}
-        {undoVisible && (
           <Modal
-            visible={undoVisible}
+            visible={deleteModalVisible}
             animationType="fade"
             transparent
-            onRequestClose={() => setUndoVisible(false)}
+            onRequestClose={closeAllModals}
           >
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
-              <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 28, width: '80%', alignItems: 'center' }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Undo Delete?</Text>
-                <Text style={{ fontSize: 16, marginBottom: 24, color: '#444', textAlign: 'center' }}>
-                  Do you want to restore the deleted restaurant?
+              <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>
+                  Apply Changes?
+                </Text>
+                <Text style={{ fontSize: 16, marginBottom: 18, color: '#444', textAlign: 'center' }}>
+                  What would you like to do with this restaurant?
                 </Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                   <TouchableOpacity
-                    style={{ backgroundColor: '#eee', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
-                    onPress={() => setUndoVisible(false)}
+                    style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
+                    onPress={closeAllModals}
                   >
                     <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={{ backgroundColor: '#2563eb', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8, flex: 1, alignItems: 'center', marginLeft: 8 }}
-                    onPress={handleUndoDelete}
+                    style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
+                    onPress={() => {
+                      closeAllModals();
+                      setTimeout(() => setConfirmDeleteVisible(true), 10);
+                    }}
+                    disabled={deleting}
                   >
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Undo</Text>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
+                    onPress={() => {
+                      closeAllModals();
+                      if (restaurantToDelete) handleEditRestaurant(restaurantToDelete);
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Edit</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
           </Modal>
-        )}
 
-        {/* Caution Disclaimer Modal */}
-        <Modal
-          visible={cautionModalVisible}
-          animationType="fade"
-          transparent
-          onRequestClose={() => setCautionModalVisible(false)}
-        >
-          <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 32, width: '85%', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }}>
-              <Feather name="alert-triangle" size={48} color="#DA291C" style={{ marginBottom: 18 }} />
-              <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#DA291C', marginBottom: 12 }}>Disclaimer</Text>
-              <Text style={{ fontSize: 16, color: '#222', textAlign: 'center', marginBottom: 18 }}>
-                This app is for informational purposes only and does not replace professional medical advice. Always confirm allergen information with restaurant staff or your physician. The creators of this app are not liable for any allergic reactions or health issues.
-              </Text>
-              <TouchableOpacity
-                style={{ backgroundColor: '#DA291C', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 32, marginTop: 8 }}
-                onPress={() => setCautionModalVisible(false)}
-              >
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Understood!</Text>
-              </TouchableOpacity>
+          {/* Confirm Delete Modal */}
+          <Modal
+            visible={confirmDeleteVisible}
+            animationType="fade"
+            transparent
+            onRequestClose={closeAllModals}
+          >
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>
+                  Permanently Delete?
+                </Text>
+                <Text style={{ fontSize: 16, marginBottom: 18, color: '#444', textAlign: 'center' }}>
+                  This will permanently delete this restaurant. Are you sure?
+                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
+                    onPress={closeAllModals}
+                  >
+                    <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
+                    onPress={async () => {
+                      closeAllModals();
+                      setTimeout(async () => { await handleDeleteRestaurantWithUndo(); }, 10);
+                    }}
+                    disabled={deleting}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </Modal>
+          </Modal>
 
-        {/* Floating profile button in top left */}
-        <TouchableOpacity style={styles.profileButtonLeft} onPress={goToProfileSetup} accessibilityLabel="Profile">
-          <Feather name="user" size={30} color="#222" />
-        </TouchableOpacity>
-        {/* Floating help button in top right */}
-        <TouchableOpacity
-          style={styles.helpButtonRight}
-          onPress={() => navigation.navigate('OnboardingCarouselDemo')}
-          accessibilityLabel="Help"
-        >
-          <Feather name="help-circle" size={30} color="#222" />
-        </TouchableOpacity>
-      </GestureHandlerRootView>
+          {/* Edit Restaurant Name Modal */}
+          <Modal
+            visible={editModalVisible}
+            animationType="slide"
+            transparent
+            onRequestClose={closeAllModals}
+          >
+            <Pressable
+              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
+              onPress={closeAllModals}
+            >
+              <Pressable
+                style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
+                onPress={(e) => e.stopPropagation()}
+              >
+                <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Apply Changes?</Text>
+                <TextInput
+                  style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16, fontFamily: 'ReadexPro-Regular' }}
+                  placeholder="Restaurant Name"
+                  value={editNameInput}
+                  onChangeText={setEditNameInput}
+                  autoFocus
+                  editable={!editSaving}
+                />
+                <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between' }}>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
+                    onPress={closeAllModals}
+                    disabled={editSaving}
+                  >
+                    <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, flex: 1, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
+                    onPress={handleEditNameSubmit}
+                    disabled={editSaving}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{editSaving ? 'Saving...' : 'Apply'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </Pressable>
+            </Pressable>
+          </Modal>
+
+          {/* Home fade-in overlay */}
+          {showHomeFadeIn && (
+            <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#fff', opacity: homeFadeAnim, zIndex: 9998 }]} pointerEvents="none" />
+          )}
+
+          {/* Undo Snackbar/Modal */}
+          {undoVisible && (
+            <Modal
+              visible={undoVisible}
+              animationType="fade"
+              transparent
+              onRequestClose={() => setUndoVisible(false)}
+            >
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
+                <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 28, width: '80%', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Undo Delete?</Text>
+                  <Text style={{ fontSize: 16, marginBottom: 24, color: '#444', textAlign: 'center' }}>
+                    Do you want to restore the deleted restaurant?
+                  </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#eee', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
+                      onPress={() => setUndoVisible(false)}
+                    >
+                      <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ backgroundColor: '#2563eb', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8, flex: 1, alignItems: 'center', marginLeft: 8 }}
+                      onPress={handleUndoDelete}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Undo</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
+          )}
+
+          {/* Caution Disclaimer Modal */}
+          <Modal
+            visible={cautionModalVisible}
+            animationType="fade"
+            transparent
+            onRequestClose={() => setCautionModalVisible(false)}
+          >
+            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+              <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 32, width: '85%', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }}>
+                <Feather name="alert-triangle" size={48} color="#DA291C" style={{ marginBottom: 18 }} />
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#DA291C', marginBottom: 12 }}>Disclaimer</Text>
+                <Text style={{ fontSize: 16, color: '#222', textAlign: 'center', marginBottom: 18 }}>
+                  This app is for informational purposes only and does not replace professional medical advice. Always confirm allergen information with restaurant staff or your physician. The creators of this app are not liable for any allergic reactions or health issues.
+                </Text>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#DA291C', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 32, marginTop: 8 }}
+                  onPress={() => setCautionModalVisible(false)}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Understood!</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Floating profile button in top left */}
+          <TouchableOpacity style={styles.profileButtonLeft} onPress={goToProfileSetup} accessibilityLabel="Profile">
+            <Feather name="user" size={30} color="#222" />
+          </TouchableOpacity>
+          {/* Floating help button in top right */}
+          <TouchableOpacity
+            style={styles.helpButtonRight}
+            onPress={() => navigation.navigate('OnboardingCarouselDemo'as any)}
+            accessibilityLabel="Help"
+          >
+            <Feather name="help-circle" size={30} color="#222" />
+          </TouchableOpacity>
+        </GestureHandlerRootView>
+      </Animated.View>
     </TouchableWithoutFeedback>
   );
 };

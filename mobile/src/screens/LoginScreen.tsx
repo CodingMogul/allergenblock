@@ -16,12 +16,11 @@ export default function TitleScreen() {
   const [showContinue, setShowContinue] = React.useState(false);
   const [videoLoopedOnce, setVideoLoopedOnce] = React.useState(false);
   const [videoPosition, setVideoPosition] = React.useState(0);
-  const videoRef = React.useRef<any>(null);
   const fallbackTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const [videoUri, setVideoUri] = React.useState<string | null>(null);
 
   // Preload video asset for onboarding
-  const [videoUri, setVideoUri] = React.useState<string | null>(null);
-  React.useEffect(() => {
+  useEffect(() => {
     const videoModule = require('../assets/OnboardTakePhoto.mp4');
     Asset.loadAsync(videoModule).then(() => {
       const asset = Asset.fromModule(videoModule);
@@ -64,62 +63,12 @@ export default function TitleScreen() {
     };
   }, []);
 
-  // Handler for hidden video loop
-  const handleVideoStatus = async (status: any) => {
-    if (status.positionMillis !== undefined) {
-      setVideoPosition(status.positionMillis);
-    }
-    if (status.didJustFinish && !videoLoopedOnce) {
-      setVideoLoopedOnce(true);
-      setShowContinue(true);
-      Animated.timing(continueButtonFade, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }).start();
-      // Restart the video for further loops
-      if (videoRef.current) {
-        await videoRef.current.setPositionAsync(0);
-        await videoRef.current.playAsync();
-      }
-      // Clear fallback timer if it hasn't fired
-      if (fallbackTimeoutRef.current) {
-        clearTimeout(fallbackTimeoutRef.current);
-        fallbackTimeoutRef.current = null;
-      }
-    }
-  };
-
   const handleContinue = async () => {
-    // Get the latest video position
-    let position = videoPosition;
-    if (videoRef.current) {
-      const status = await videoRef.current.getStatusAsync();
-      if (status.positionMillis !== undefined) {
-        position = status.positionMillis;
-      }
-    }
-    navigation.navigate('OnboardingCarouselDemo' as any, {
-      preloadedVideoUri: videoUri,
-      preloadedVideoPosition: position,
-    });
+    navigation.navigate('OnboardingCarouselDemo' as any, { preloadedVideoUri: videoUri });
   };
 
   return (
     <View style={styles.container}>
-      {/* Hidden video for preloading/rendering purposes */}
-      {videoUri && (
-        <Video
-          ref={videoRef}
-          source={{ uri: videoUri }}
-          style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
-          resizeMode={ResizeMode.COVER}
-          isLooping={false}
-          isMuted
-          shouldPlay={true}
-          onPlaybackStatusUpdate={handleVideoStatus}
-        />
-      )}
       <Animated.View style={{ opacity: logoTitleOpacity }}>
         <MaterialCommunityIcons
           name="peanut"
@@ -145,6 +94,16 @@ export default function TitleScreen() {
             <Text style={styles.continueButtonText}>Continue →</Text>
           </TouchableOpacity>
         </Animated.View>
+      )}
+      {/* Preload video invisibly for caching */}
+      {videoUri && (
+        <Video
+          source={{ uri: videoUri }}
+          style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
+          isMuted
+          shouldPlay={false}
+          resizeMode={ResizeMode.CONTAIN}
+        />
       )}
     </View>
   );

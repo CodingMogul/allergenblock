@@ -18,8 +18,15 @@ import HomeScreen from './src/screens/HomeScreen';
 import MenuScreen from './src/screens/MenuScreen';
 import Welcome from './src/screens/Welcome';
 import SplashScreen from './src/screens/SplashScreen';
+import { OnboardingVideoProvider } from './src/context/OnboardingVideoContext';
 
 const Stack = createStackNavigator();
+
+// Add clearAsyncStorage debug function
+const clearAsyncStorage = async () => {
+  await AsyncStorage.clear();
+  alert('AsyncStorage cleared!');
+};
 
 export default function App() {
   const [fontsLoaded] = Font.useFonts({
@@ -28,16 +35,6 @@ export default function App() {
   });
   const [initialRoute, setInitialRoute] = React.useState<string | null>(null);
   const [showSplash, setShowSplash] = React.useState(false);
-
-  // Debug: clear AsyncStorage button for onboarding
-  const clearAsyncStorage = async () => {
-    try {
-      await AsyncStorage.clear();
-      Alert.alert('AsyncStorage cleared!');
-    } catch (e) {
-      Alert.alert('Failed to clear AsyncStorage');
-    }
-  };
 
   // --- UPDATED NAVIGATION LOGIC ---
   React.useEffect(() => {
@@ -65,28 +62,49 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <UserProfileProvider>
-        <NavigationContainer>
-          <Stack.Navigator
-            initialRouteName={initialRoute}
-            screenOptions={{
-              headerShown: false,
-              cardStyle: { backgroundColor: '#fff' },
-            }}
-          >
-            <Stack.Screen name="Splash" component={SplashScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="OnboardingCarouselDemo" component={OnboardingCarouselDemo} />
-            <Stack.Screen name="OnboardingScanDemo" component={OnboardingScanDemo} />
-            <Stack.Screen name="OnboardingAddMenu" component={OnboardingAddMenu} />
-            <Stack.Screen name="ProfileSetup" component={ProfileSetup} />
-            <Stack.Screen name="Camera" component={CameraScreen} />
-            <Stack.Screen name="Welcome" component={Welcome} />
-            <Stack.Screen name="Home" component={HomeScreen} />
-            <Stack.Screen name="Menu" component={MenuScreen} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </UserProfileProvider>
+      {/* DEBUG: Remove this block to hide the clear AsyncStorage button */}
+      {__DEV__ && (
+        <View style={{ position: 'absolute', top: 40, left: 0, right: 0, zIndex: 9999, alignItems: 'center' }}>
+          <Button title="Clear AsyncStorage" color="#DA291C" onPress={clearAsyncStorage} />
+        </View>
+      )}
+      {/* END DEBUG: Clear AsyncStorage button */}
+      <OnboardingVideoProvider>
+        <UserProfileProvider>
+          <NavigationContainer>
+            <Stack.Navigator
+              initialRouteName={initialRoute}
+              screenOptions={{
+                headerShown: false,
+                cardStyle: { backgroundColor: '#fff' },
+              }}
+            >
+              <Stack.Screen name="Splash" component={SplashScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="OnboardingCarouselDemo" component={OnboardingCarouselDemo} />
+              <Stack.Screen name="OnboardingScanDemo" component={OnboardingScanDemo} />
+              <Stack.Screen name="OnboardingAddMenu" component={OnboardingAddMenu} />
+              <Stack.Screen name="ProfileSetup" component={ProfileSetup} />
+              <Stack.Screen name="Camera" component={CameraScreen} />
+              <Stack.Screen name="Welcome" component={Welcome} />
+              <Stack.Screen 
+                name="Home" 
+                component={HomeScreen} 
+                options={{
+                  cardStyleInterpolator: ({ current, layouts }) => {
+                    return {
+                      cardStyle: {
+                        opacity: current.progress,
+                      },
+                    };
+                  },
+                }}
+              />
+              <Stack.Screen name="Menu" component={MenuScreen} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </UserProfileProvider>
+      </OnboardingVideoProvider>
     </GestureHandlerRootView>
   );
 }
