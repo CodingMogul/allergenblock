@@ -48,16 +48,9 @@ import type { MenuItem, Restaurant } from '../restaurantData';
 import { Accelerometer } from 'expo-sensors';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { TextInput as RNTextInput } from 'react-native';
+import { RootStackParamList } from '../screens/types/navigation';
 
 type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
-
-type RootStackParamList = {
-  Home: undefined;
-  Menu: { restaurant: { id: string; name: string; apimatch?: string; brandLogo?: string } };
-  Camera: undefined;
-  ProfileSetup: { canGoBack?: boolean };
-  InstructionPage: { fromHelp?: boolean };
-};
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -1274,22 +1267,13 @@ const HomeScreen = () => {
           <Feather name="user" size={30} color="#222" />
         </TouchableOpacity>
         {/* Floating help button in top right */}
-        <TouchableOpacity style={styles.helpButtonRight} onPress={() => navigation.navigate('InstructionPage', { fromHelp: true })} accessibilityLabel="Help">
+        <TouchableOpacity
+          style={styles.helpButtonRight}
+          onPress={() => navigation.navigate('OnboardingCarouselDemo')}
+          accessibilityLabel="Help"
+        >
           <Feather name="help-circle" size={30} color="#222" />
         </TouchableOpacity>
-
-        {/* Clear AsyncStorage button for onboarding dev */}
-        {__DEV__ && (
-          <TouchableOpacity
-            style={{ position: 'absolute', bottom: 110, right: 24, backgroundColor: '#ffeaea', borderRadius: 8, padding: 12, zIndex: 100 }}
-            onPress={async () => {
-              await AsyncStorage.clear();
-              Alert.alert('AsyncStorage cleared');
-            }}
-          >
-            <Text style={{ color: '#DA291C', fontWeight: 'bold' }}>Clear AsyncStorage</Text>
-          </TouchableOpacity>
-        )}
       </GestureHandlerRootView>
     </TouchableWithoutFeedback>
   );
@@ -1433,22 +1417,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  helpButtonRight: {
-    position: 'absolute',
-    top: 80,
-    right: 24,
-    zIndex: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 4,
-  },
   userNameContainer: {
     position: 'absolute',
     top: 80,
@@ -1468,6 +1436,22 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     color: '#555',
     textAlign: 'center',
+  },
+  helpButtonRight: {
+    position: 'absolute',
+    top: 80,
+    right: 24,
+    zIndex: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });
 

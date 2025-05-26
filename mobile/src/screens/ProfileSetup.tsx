@@ -75,6 +75,8 @@ export default function ProfileSetup() {
   const [showSaved, setShowSaved] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const carouselRef = useRef<any>(null);
+  const [showNoAllergyModal, setShowNoAllergyModal] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -82,21 +84,29 @@ export default function ProfileSetup() {
     }, [profile])
   );
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (force = false) => {
+    if (selectedAllergens.length === 0 && !force) {
+      setShowNoAllergyModal(true);
+      return;
+    }
     try {
       setIsLoading(true);
       const userProfile = {
         ...profile,
         allergens: selectedAllergens
       };
-      await updateProfile(userProfile);
-      if (canGoBack) {
+      if (selectedAllergens.length === 0 && force) {
+        await updateProfile({ ...profile, allergens: [] });
+      } else {
+        await updateProfile(userProfile);
+      }
+      if (route.params?.fromOnboarding) {
+        navigation.navigate('Welcome');
+      } else if (canGoBack) {
         setShowSaved(true);
         setTimeout(() => setShowSaved(false), 3000);
-      } else if (route.params?.fromOnboarding) {
-        navigation.navigate('OnboardingScanDemo');
       } else {
-        navigation.navigate('Home');
+        navigation.navigate('Menu' as any);
       }
     } catch (error) {
       Alert.alert(
@@ -110,7 +120,7 @@ export default function ProfileSetup() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: isDarkMode ? '#121212' : '#fff' }}>
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
       {canGoBack && (
         <TouchableOpacity
           style={styles.homeButton}
@@ -120,7 +130,7 @@ export default function ProfileSetup() {
           <Feather name="home" size={28} color={isDarkMode ? '#eee' : '#222'} />
         </TouchableOpacity>
       )}
-      <ScrollView style={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#fff' }]}
+      <ScrollView style={[styles.container, { backgroundColor: '#fff', padding: 20 }]}
         contentContainerStyle={{ alignItems: 'center', justifyContent: 'center', flexGrow: 1 }}>
         <Text style={[styles.title, { color: isDarkMode ? '#eee' : '#DA291C', textAlign: 'center' }]}>Allergy Profile</Text>
         <Text style={[styles.sectionTitle, { color: isDarkMode ? '#eee' : '#222', textAlign: 'center', marginTop: 12 }]}>Select Your Allergens</Text>
@@ -186,7 +196,7 @@ export default function ProfileSetup() {
         </Animatable.View>
         <TouchableOpacity 
           style={[styles.saveButton, isLoading && styles.saveButtonDisabled, { alignSelf: 'center' }]}
-          onPress={handleSaveProfile}
+          onPress={() => handleSaveProfile()}
           disabled={isLoading}
         >
           {isLoading ? (
@@ -201,6 +211,28 @@ export default function ProfileSetup() {
           </Text>
         )}
       </ScrollView>
+      {showNoAllergyModal && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', zIndex: 100 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 32, alignItems: 'center', width: 320, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 8 }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#DA291C', marginBottom: 16, fontFamily: 'ReadexPro-Bold', textAlign: 'center' }}>No allergy selected</Text>
+            <Text style={{ fontSize: 16, color: '#222', marginBottom: 24, textAlign: 'center' }}>You have not selected any allergens. Are you sure you want to continue?</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'center', width: '100%' }}>
+              <TouchableOpacity
+                style={{ backgroundColor: '#DA291C', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24, marginRight: 12 }}
+                onPress={() => { setShowNoAllergyModal(false); handleSaveProfile(true); }}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Confirm</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: '#eee', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 24 }}
+                onPress={() => { setShowNoAllergyModal(false); }}
+              >
+                <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 16 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

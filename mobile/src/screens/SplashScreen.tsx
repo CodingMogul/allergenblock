@@ -44,10 +44,10 @@ const SplashScreen = () => {
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}> 
-      <Animated.View style={[styles.centered, { opacity: fadeAnim }]}> 
+      <Animated.View style={[styles.centered, { opacity: fadeAnim, marginTop: -90 }]}> 
         <MaterialCommunityIcons
           name="peanut"
-          size={120}
+          size={150}
           color="#DA291C"
           style={{
             marginBottom: 18,
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   epiEatsText: {
-    fontSize: 54,
+    fontSize: 72,
     fontWeight: 'bold',
     fontFamily: 'ReadexPro-Bold',
     letterSpacing: 1.5,
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   epi: {
     color: '#111',
     fontWeight: 'bold',
-    fontFamily: 'ReadexPro-Bold',
+    fontFamily: 'ReadexPro-Regular',
     textAlign: 'center',
   },
   eatsRed: {
