@@ -7,8 +7,8 @@ import { calculateStringSimilarity } from "./stringSimilarity";
  * @returns Array of best matching menu items with similarity scores
  */
 export function findBestMatchingMenu(
-  sourceItems: Array<{ name: string; allergens: string[] }>,
-  targetItems: Array<{ name: string; allergens: string[] }>
+  sourceItems: Array<{ name: string; allergenIngredients: Record<string, string[]> }>,
+  targetItems: Array<{ name: string; allergenIngredients: Record<string, string[]> }>
 ) {
   return sourceItems.map(sourceItem => {
     let bestMatch = null;
@@ -37,15 +37,15 @@ export function findBestMatchingMenu(
  * @returns Similarity score between 0 and 1
  */
 export function calculateMenuItemSimilarity(
-  item1: { name: string; allergens: string[] },
-  item2: { name: string; allergens: string[] }
+  item1: { name: string; allergenIngredients: Record<string, string[]> },
+  item2: { name: string; allergenIngredients: Record<string, string[]> }
 ): number {
   // Calculate name similarity
   const nameSimilarity = calculateStringSimilarity(item1.name, item2.name);
   
-  // Calculate allergen similarity
-  const allergenSet1 = new Set(item1.allergens);
-  const allergenSet2 = new Set(item2.allergens);
+  // Calculate allergen similarity based on allergen keys
+  const allergenSet1 = new Set(Object.keys(item1.allergenIngredients));
+  const allergenSet2 = new Set(Object.keys(item2.allergenIngredients));
   
   // Count matching allergens
   let matchingAllergens = 0;

@@ -5,7 +5,7 @@ import { fetchLogoUrl } from './logoService';
 interface MenuData {
   restaurantName: string;
   location: { lat: number; lng: number };
-  menuItems: Array<{ name: string; allergens: string[]; certainty: number }>;
+  menuItems: Array<{ name: string; allergenIngredients: Record<string, string[]> }>;
   source: 'camera' | 'manual';
 }
 

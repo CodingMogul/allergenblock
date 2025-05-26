@@ -21,7 +21,7 @@ import { getGoogleOnlyMatch } from "@/lib/restaurantService";
  *   restaurantName: "Pizza Palace",
  *   location: { lat: 37.7749, lng: -122.4194 },
  *   menuItems: [
- *     { name: "Margherita Pizza", allergens: ["dairy", "gluten"] }
+ *     { name: "Margherita Pizza", allergenIngredients: { "dairy": ["cheese"], "gluten": ["crust"] } }
  *   ]
  * }
  */

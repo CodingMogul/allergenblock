@@ -10,21 +10,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 /**
- * Triggers camera request for menu capture
- * @param restaurantName - Name of the restaurant
- * @param location - Restaurant's coordinates
- * @returns Promise boolean of success or failure
- */
-export async function requestCameraCapture(
-  restaurantName: string,
-  location: { lat: number; lng: number }
-): Promise<boolean> {
-  console.log("📸 Requesting menu capture for:", { restaurantName, location });
-  // This would be where we would request the camera capture from the camera
-  return true;
-}
-
-/**
  * Processes the captured image from the camera
  * @param imageData - The image data captured from the camera (can be a File, Blob, or base64 string)
  * @returns Processed menu items with source information, or all-null object if no menu found
@@ -34,7 +19,7 @@ export async function processCameraImage(
 ): Promise<{
   restaurantName?: string | null;
   location?: unknown | null;
-  menuItems: Array<{ name: string; allergens: string[] }> | null;
+  menuItems: Array<{ name: string; allergens: string[]; allergenIngredients: Record<string, string[]> }> | null;
   source: "camera" | null;
 }> {
   console.log("🔍 Processing camera image");
@@ -86,7 +71,7 @@ export async function processCameraImage(
     return {
       menuItems: result.map((item) => {
         // Normalize allergenIngredients to ensure all values are arrays of strings
-        let normalizedAllergenIngredients: Record<string, string[]> = {};
+        const normalizedAllergenIngredients: Record<string, string[]> = {};
         if (item.allergenIngredients && typeof item.allergenIngredients === 'object') {
           for (const key in item.allergenIngredients) {
             const val = item.allergenIngredients[key];
@@ -99,8 +84,10 @@ export async function processCameraImage(
             }
           }
         }
+        const allergens = Object.keys(normalizedAllergenIngredients);
         return {
           name: item.name,
+          allergens,
           allergenIngredients: normalizedAllergenIngredients,
         };
       }),
@@ -146,7 +133,7 @@ export async function convertToBase64(filePath: string): Promise<string> {
 export async function processImageWithGemini(
   base64Image: string | null
 ): Promise<
-  | Array<{ name: string; allergens: string[]; certainty: number; allergenIngredients?: Record<string, string[]> }>
+  | Array<{ name: string; allergens: string[]; allergenIngredients: Record<string, string[]> }>
   | { error: true; message: string }
 > {
   try {
@@ -222,29 +209,4 @@ export async function processImageWithGemini(
       message: "Gemini failed",
     };
   }
-}
-
-/**
- * Validates the camera capture data
- * @param restaurantName - Name of the restaurant
- * @param location - Restaurant's coordinates
- * @param menuItems - Array of menu items with allergens
- * @returns Boolean indicating if the data is valid
- */
-export function validateCameraData(
-  restaurantName: string,
-  location: { lat: number; lng: number },
-  menuItems: Array<{ name: string; allergens: string[] }>
-): boolean {
-  if (!restaurantName || !location || !menuItems) {
-    console.error("❌ Invalid camera data: missing required fields");
-    return false;
-  }
-
-  if (menuItems.length === 0) {
-    console.error("❌ Invalid camera data: no menu items found");
-    return false;
-  }
-
-  return true;
 }
