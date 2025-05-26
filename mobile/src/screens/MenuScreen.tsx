@@ -437,24 +437,28 @@ export default function MenuScreen() {
             {isExpanded && (
               <View style={styles.allergenListContainer}>
                 <View style={styles.allergenRow}>
-                  <Text style={[styles.menuItemAllergensExpanded, { fontSize: 18 }]}>Contains:</Text>
-                  <Text style={[styles.allergenText, { marginLeft: 8, fontSize: 18 }]}> 
+                  <Text style={{ fontSize: 20, color: '#000', fontWeight: '400', fontFamily: 'ReadexPro-Regular' }}>Contains:</Text>
+                  <View style={{ flexDirection: 'row', marginLeft: 8, flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 2 }}>
                     {item.allergens.map((allergen, i) => {
-                      const key = allergen.toLowerCase().trim() as keyof typeof allergenIcons;
-                      const Icon = allergenIcons[key];
+                      let key = allergen.toLowerCase().trim();
+                      if (key === 'peanuts') key = 'peanut';
+                      if (key === 'treenuts') key = 'tree nuts';
+                      if (key === 'eggs' || key === 'egg') key = 'eggs';
+                      if (key === 'shellfish') key = 'shellfish';
+                      if (key === 'dairy' || key === 'milk') key = 'milk';
+                      if (key === 'gluten' || key === 'wheat') key = 'gluten';
+                      if (key === 'soy') key = 'soy';
+                      if (key === 'sesame') key = 'sesame';
+                      const Icon = allergenIcons[key as keyof typeof allergenIcons];
+                      if (!Icon) console.warn('Missing allergen icon for', allergen, 'key:', key);
                       return (
-                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          {i > 0 && <Text>, </Text>}
-                          {Icon && <Icon width={20} height={20} style={{ marginRight: 4 }} />}
-                          <Text style={userAllergies.includes(allergen)
-                            ? { fontWeight: 'bold', color: '#ff4d4d', fontFamily: 'ReadexPro-Bold' }
-                            : {}}>
-                            {allergen}
-                          </Text>
+                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8, marginBottom: 4 }}>
+                          {Icon ? <Icon width={20} height={20} style={{ marginRight: 4 }} /> : null}
+                          <Text style={{ color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 18 }}>{allergen}</Text>
                         </View>
                       );
                     })}
-                  </Text>
+                  </View>
                 </View>
               </View>
             )}

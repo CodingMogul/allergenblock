@@ -906,14 +906,11 @@ const HomeScreen = () => {
               placeholder="Search restaurants"
               placeholderTextColor="#999"
               value={searchText}
-              onChangeText={text => {
-                console.log('[DEBUG] onChangeText', text);
-                setSearchText(text);
-              }}
+              onChangeText={setSearchText}
               returnKeyType="search"
             />
             {searchText.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchText('')}>
+              <TouchableOpacity onPress={() => setSearchText('')} accessibilityLabel="Clear search text" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <Feather name="x-circle" size={24} color="#bbb" />
               </TouchableOpacity>
             )}
@@ -937,18 +934,16 @@ const HomeScreen = () => {
   ), [setCautionModalVisible, setSearchBarVisible, setLocationFilter, locationFilter, searchBarVisible, searchText]);
 
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchText(searchText);
-    }, 120); // 120ms debounce
-    return () => clearTimeout(handler);
+    setDebouncedSearchText(searchText);
   }, [searchText]);
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <GestureHandlerRootView style={styles.container}>
+      <GestureHandlerRootView style={styles.container} pointerEvents="auto">
         {/* Overlays should be rendered last so they are above all content */}
         {/* Main content */}
         <FlatList
+          pointerEvents="auto"
           data={filteredRestaurants}
           renderItem={({ item }) => {
             let distance: number | null = null;
@@ -1089,7 +1084,7 @@ const HomeScreen = () => {
           visible={deleteModalVisible}
           animationType="fade"
           transparent
-          onRequestClose={() => setDeleteModalVisible(false)}
+          onRequestClose={closeAllModals}
         >
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
@@ -1102,15 +1097,15 @@ const HomeScreen = () => {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                 <TouchableOpacity
                   style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
-                  onPress={() => setDeleteModalVisible(false)}
+                  onPress={closeAllModals}
                 >
                   <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
                   onPress={() => {
-                    setDeleteModalVisible(false);
-                    setConfirmDeleteVisible(true);
+                    closeAllModals();
+                    setTimeout(() => setConfirmDeleteVisible(true), 10);
                   }}
                   disabled={deleting}
                 >
@@ -1119,7 +1114,7 @@ const HomeScreen = () => {
                 <TouchableOpacity
                   style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
                   onPress={() => {
-                    setDeleteModalVisible(false);
+                    closeAllModals();
                     if (restaurantToDelete) handleEditRestaurant(restaurantToDelete);
                   }}
                 >
@@ -1135,7 +1130,7 @@ const HomeScreen = () => {
           visible={confirmDeleteVisible}
           animationType="fade"
           transparent
-          onRequestClose={() => setConfirmDeleteVisible(false)}
+          onRequestClose={closeAllModals}
         >
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
             <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
@@ -1148,15 +1143,15 @@ const HomeScreen = () => {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
                 <TouchableOpacity
                   style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
-                  onPress={() => setConfirmDeleteVisible(false)}
+                  onPress={closeAllModals}
                 >
                   <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
                   onPress={async () => {
-                    setConfirmDeleteVisible(false);
-                    await handleDeleteRestaurantWithUndo();
+                    closeAllModals();
+                    setTimeout(async () => { await handleDeleteRestaurantWithUndo(); }, 10);
                   }}
                   disabled={deleting}
                 >
@@ -1172,11 +1167,11 @@ const HomeScreen = () => {
           visible={editModalVisible}
           animationType="slide"
           transparent
-          onRequestClose={() => setEditModalVisible(false)}
+          onRequestClose={closeAllModals}
         >
           <Pressable
             style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
-            onPress={() => setEditModalVisible(false)}
+            onPress={closeAllModals}
           >
             <Pressable
               style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
@@ -1194,7 +1189,7 @@ const HomeScreen = () => {
               <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between' }}>
                 <TouchableOpacity
                   style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
-                  onPress={() => setEditModalVisible(false)}
+                  onPress={closeAllModals}
                   disabled={editSaving}
                 >
                   <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>

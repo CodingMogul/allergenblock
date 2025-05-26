@@ -12,8 +12,9 @@ import TreePine from '../../assets/icons/TreePine.svg';
 import Bread from '../../assets/icons/Bread.svg';
 import Beans from '../../assets/icons/Beans.svg';
 import Sesame from '../../assets/icons/Sesame.svg';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Asset } from 'expo-asset';
 
 const ALLERGENS = [
   { id: 'dairy', name: 'Dairy' },
@@ -49,14 +50,20 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = SCREEN_WIDTH * 0.7;
 const CARD_HEIGHT = CARD_WIDTH * 1.2;
 
+const videoModule = require('../assets/OnboardTakePhoto.mp4');
+
 export default function OnboardingCarouselDemo() {
   const carouselRef = useRef<any>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [highlighted, setHighlighted] = useState(true);
   const navigation = useNavigation();
+  const route = useRoute();
+  const preloadedVideoUri = (route as any).params?.preloadedVideoUri;
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const isMountedRef = useRef(true);
   const hapticTimeouts: NodeJS.Timeout[] = [];
+  const [videoReady, setVideoReady] = useState(false);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
 
   const cancelLoop = () => {
     isMountedRef.current = false;
@@ -99,10 +106,18 @@ export default function OnboardingCarouselDemo() {
     return cancelLoop;
   }, []);
 
+  useEffect(() => {
+    Asset.loadAsync(videoModule).then(() => {
+      const asset = Asset.fromModule(videoModule);
+      setVideoUri(asset.uri);
+      setVideoReady(true);
+    });
+  }, []);
+
   const handleContinue = () => {
     cancelLoop();
     setTimeout(() => {
-      (navigation as any).navigate('OnboardingScanDemo');
+      (navigation as any).navigate('OnboardingScanDemo', { preloadedVideoUri });
     }, 50);
   };
 
@@ -208,7 +223,7 @@ const styles = StyleSheet.create({
     fontFamily: 'ReadexPro-Regular',
   },
   continueButton: {
-    marginTop: 40,
+    marginTop: 30,
     backgroundColor: '#fff',
     borderRadius: 8,
     paddingVertical: 0,
