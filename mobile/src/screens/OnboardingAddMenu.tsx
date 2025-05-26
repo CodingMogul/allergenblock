@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     position: 'absolute',
-    bottom: 120,
+    bottom: 20,
     left: 0,
     right: 0,
     alignItems: 'center',
