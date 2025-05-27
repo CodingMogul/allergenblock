@@ -193,9 +193,6 @@ const HomeScreen = () => {
   // Add state for delete confirmation modal
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
   const [lastDeletedRestaurant, setLastDeletedRestaurant] = useState<Restaurant | null>(null);
-  const [undoVisible, setUndoVisible] = useState(false);
-  const accelerometerSubscription = useRef<any>(null);
-  const lastShake = useRef<number>(0);
   const [cautionModalVisible, setCautionModalVisible] = useState(false);
   const [searchBarVisible, setSearchBarVisible] = useState(false);
   const [debouncedSearchText, setDebouncedSearchText] = useState(searchText);
@@ -511,76 +508,6 @@ const HomeScreen = () => {
     setDeleteModalVisible(true);
   };
 
-  // Shake detection logic
-  useEffect(() => {
-    let lastX = 0, lastY = 0, lastZ = 0;
-    let shakeThreshold = 1.2; // Adjust as needed
-    function handleAccelerometer({ x, y, z }: { x: number, y: number, z: number }) {
-      const now = Date.now();
-      const delta = Math.abs(x - lastX) + Math.abs(y - lastY) + Math.abs(z - lastZ);
-      if (delta > shakeThreshold && now - lastShake.current > 1200 && restaurantToDelete) {
-        lastShake.current = now;
-        setUndoVisible(true);
-      }
-      lastX = x;
-      lastY = y;
-      lastZ = z;
-    }
-    accelerometerSubscription.current = Accelerometer.addListener(handleAccelerometer);
-    Accelerometer.setUpdateInterval(200);
-    return () => {
-      accelerometerSubscription.current && accelerometerSubscription.current.remove();
-    };
-  }, [restaurantToDelete]);
-
-  // Override handleDeleteRestaurant to store last deleted
-  const handleDeleteRestaurantWithUndo = async () => {
-    if (!restaurantToDelete) return;
-    setDeleting(true);
-    try {
-      setLastDeletedRestaurant(restaurantToDelete);
-      await deleteRestaurant(restaurantToDelete.id);
-      await fetchRestaurants();
-    } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to delete restaurant.');
-    } finally {
-      setDeleting(false);
-      setDeleteModalVisible(false);
-      setRestaurantToDelete(null);
-      closeAllModals();
-      setTimeout(() => {
-        setDeleteModalVisible(false);
-        setConfirmDeleteVisible(false);
-        setUndoVisible(false);
-        setShowLoadingOverlay(false);
-        setShowSuccessOverlay(false);
-        setShowNoMenuModal(false);
-        setEditModalVisible(false);
-        setCautionModalVisible(false);
-      }, 100);
-    }
-  };
-
-  // Undo delete handler
-  const handleUndoDelete = async () => {
-    if (lastDeletedRestaurant) {
-      await addRestaurant(lastDeletedRestaurant);
-      await fetchRestaurants();
-      setLastDeletedRestaurant(null);
-      setUndoVisible(false);
-      setTimeout(() => {
-        setDeleteModalVisible(false);
-        setConfirmDeleteVisible(false);
-        setUndoVisible(false);
-        setShowLoadingOverlay(false);
-        setShowSuccessOverlay(false);
-        setShowNoMenuModal(false);
-        setEditModalVisible(false);
-        setCautionModalVisible(false);
-      }, 100);
-    }
-  };
-
   // Fade-in effect when navigating home after success
   useEffect(() => {
     if ((route as any).params?.fadeIn) {
@@ -873,7 +800,6 @@ const HomeScreen = () => {
           showLoadingOverlay,
           showSuccessOverlay,
           showNoMenuModal,
-          undoVisible,
           showHomeFadeIn,
           cautionModalVisible,
           editModalVisible,
@@ -896,7 +822,6 @@ const HomeScreen = () => {
     setEditModalVisible(false);
     setDeleteModalVisible(false);
     setConfirmDeleteVisible(false);
-    setUndoVisible(false);
     setShowLoadingOverlay(false);
     setShowSuccessOverlay(false);
     setShowNoMenuModal(false);
@@ -956,6 +881,23 @@ const HomeScreen = () => {
   useEffect(() => {
     setDebouncedSearchText(searchText);
   }, [searchText]);
+
+  // Add this function near other handlers
+  const handleDeleteRestaurant = async () => {
+    if (!restaurantToDelete) return;
+    setDeleting(true);
+    try {
+      await deleteRestaurant(restaurantToDelete.id);
+      await fetchRestaurants();
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to delete restaurant.');
+    } finally {
+      setDeleting(false);
+      setDeleteModalVisible(false);
+      setRestaurantToDelete(null);
+      closeAllModals();
+    }
+  };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -1185,7 +1127,7 @@ const HomeScreen = () => {
                     style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
                     onPress={async () => {
                       closeAllModals();
-                      setTimeout(async () => { await handleDeleteRestaurantWithUndo(); }, 10);
+                      setTimeout(async () => { await handleDeleteRestaurant(); }, 10);
                     }}
                     disabled={deleting}
                   >
@@ -1239,39 +1181,6 @@ const HomeScreen = () => {
               </Pressable>
             </Pressable>
           </Modal>
-
-          {/* Undo Snackbar/Modal */}
-          {undoVisible && (
-            <Modal
-              visible={undoVisible}
-              animationType="fade"
-              transparent
-              onRequestClose={() => setUndoVisible(false)}
-            >
-              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
-                <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 28, width: '80%', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Undo Delete?</Text>
-                  <Text style={{ fontSize: 16, marginBottom: 24, color: '#444', textAlign: 'center' }}>
-                    Do you want to restore the deleted restaurant?
-                  </Text>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                    <TouchableOpacity
-                      style={{ backgroundColor: '#eee', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
-                      onPress={() => setUndoVisible(false)}
-                    >
-                      <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={{ backgroundColor: '#2563eb', paddingVertical: 10, paddingHorizontal: 28, borderRadius: 8, flex: 1, alignItems: 'center', marginLeft: 8 }}
-                      onPress={handleUndoDelete}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Undo</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
-          )}
 
           {/* Caution Disclaimer Modal */}
           <Modal
