@@ -109,18 +109,10 @@ const OnboardingScanDemo = () => {
           duration: 400,
           useNativeDriver: true,
         }).start();
-      }, 2000);
+      }, 600);
       return () => clearTimeout(timer);
     }
   }, [slideUpComplete]);
-
-  // Pause 1.5s at end, then loop
-  const handleVideoStatus = async (status: any) => {
-    if (status.didJustFinish && visibleVideoRef.current) {
-      await visibleVideoRef.current.pauseAsync();
-      // Do not restart playback, just leave paused
-    }
-  };
 
   // Skip button handler
   const handleSkip = () => {
@@ -216,11 +208,8 @@ const OnboardingScanDemo = () => {
             source={{ uri: videoUri }}
             style={styles.video}
             resizeMode={ResizeMode.CONTAIN}
-            isLooping={false}
-            isMuted
-            shouldPlay={true}
+            isLooping={true}
             onLoad={() => setIsReady(true)}
-            onPlaybackStatusUpdate={handleVideoStatus}
             onError={(e) => console.log('Video error', e)}
           />
         ) : (

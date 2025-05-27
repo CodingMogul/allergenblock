@@ -216,28 +216,21 @@ const FakeMenuCard = ({ onExpand }: { onExpand: () => void }) => {
       <View style={{ flex: 1, minHeight: expanded ? 160 : 100, justifyContent: 'center' }}>
         <View style={menuCardStyles.menuTextCenterer}>
           <Text style={[menuCardStyles.menuItemName, { fontFamily: 'ReadexPro-Regular' }]}>{item.name}</Text>
-          {item.ingredients && (
+          {expanded && item.ingredients && (
             <Text style={{ fontSize: 16, color: '#666', marginTop: 8, fontFamily: 'ReadexPro-Regular', textAlign: 'center' }}>{item.ingredients}</Text>
           )}
         </View>
         {expanded && (
-          <Animated.View style={{
-            marginTop: 8,
-            opacity: expandAnim,
-            width: '100%',
-            alignItems: 'center',
-          }}>
-            <View style={menuCardStyles.allergenListContainer}>
-              <View style={menuCardStyles.allergenRow}>
-                <Text style={[menuCardStyles.menuItemAllergensExpanded, { fontSize: 18, fontFamily: 'ReadexPro-Bold' }]}>Contains:</Text>
-                {item.allergens.map((allergen, i) => (
-                  <View key={i} style={{ flexDirection: 'column', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 8 }}>
-                    <Text style={[menuCardStyles.allergenText, { fontSize: 18, color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold' }]}>{allergen}</Text>
-                  </View>
-                ))}
-              </View>
+          <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', marginTop: 12 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
+              {Object.keys(item.allergenIngredients).map((allergen, i) => (
+                <View key={i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8, marginBottom: 4 }}>
+                  {/* You can add an icon here if desired, e.g. <Icon /> */}
+                  <Text style={{ color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 15 }}>{allergen}</Text>
+                </View>
+              ))}
             </View>
-          </Animated.View>
+          </View>
         )}
       </View>
       {/* Allergen tally square (red box) */}

@@ -105,26 +105,6 @@ export default function App() {
           </NavigationContainer>
         </UserProfileProvider>
       </OnboardingVideoProvider>
-      {/* ===== DEBUG: CLEAR ASYNC STORAGE BUTTON (REMOVE THIS BLOCK WHEN DONE) ===== */}
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 40, alignItems: 'center', zIndex: 999 }}>
-        <TouchableOpacity
-          onPress={handleClearAsyncStorage}
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: 8,
-            shadowColor: '#000',
-            shadowOpacity: 0.12,
-            shadowRadius: 6,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 3,
-            paddingVertical: 6,
-            paddingHorizontal: 12,
-          }}
-        >
-          <Text style={{ color: '#DA291C', fontWeight: 'bold', fontSize: 18 }}>Clear AsyncStorage</Text>
-        </TouchableOpacity>
-      </View>
-      {/* ===== END DEBUG BLOCK ===== */}
     </GestureHandlerRootView>
   );
 }

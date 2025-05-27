@@ -148,6 +148,15 @@ function getDynamicHeaderFontSize(title: string) {
   return baseFontSize;
 }
 
+function normalizeAllergen(a: string) {
+  if (a === 'egg' || a === 'eggs') return 'egg';
+  if (a === 'peanut' || a === 'peanuts') return 'peanut';
+  if (a === 'tree nut' || a === 'tree nuts') return 'tree nut';
+  if (a === 'dairy' || a === 'milk') return 'dairy';
+  if (a === 'gluten' || a === 'wheat') return 'gluten';
+  return a.toLowerCase();
+}
+
 export default function MenuScreen() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute();
@@ -227,7 +236,14 @@ export default function MenuScreen() {
         try {
           const allRestaurants: Restaurant[] = await getRestaurants();
           const found = allRestaurants.find((r: any) => r.id === restaurant.id);
-          const menuItems = found && found.menuItems ? found.menuItems : [];
+          let menuItems = found && found.menuItems ? found.menuItems : [];
+          // Normalize allergens
+          menuItems = menuItems.map(item => ({
+            ...item,
+            allergens: Object.keys(item.allergenIngredients || {}),
+            certainty: item.certainty,
+            guessedAllergens: item.guessedAllergens,
+          }));
           if (isActive) setMenu(menuItems);
         } catch (error) {
           if (isActive) setMenu([]);
@@ -385,6 +401,12 @@ export default function MenuScreen() {
       <View style={baseCardStyle}>{children}</View>
     );
 
+    const matchingAllergens = profile.allergens && profile.allergens.length > 0 && item.allergens
+      ? item.allergens.filter(
+          a => profile.allergens.map(normalizeAllergen).includes(normalizeAllergen(a))
+        )
+      : [];
+
     return (
       <Pressable
         onPressIn={() => setPressed(true)}
@@ -395,74 +417,72 @@ export default function MenuScreen() {
         }}
       >
         <CardContainer>
-          <View style={styles.menuCardContent}>
-            <View style={styles.menuTextCenterer}>
-              <Text style={styles.menuItemName}>{item.name}</Text>
-              {item.allergenIngredients && Object.values(item.allergenIngredients).flat().length > 0 && (
-                <Text style={{ fontSize: 16, color: '#666', marginTop: 8, fontFamily: 'ReadexPro-Regular', textAlign: 'center' }}>
-                  {Array.from(new Set(Object.values(item.allergenIngredients).flat())).join(', ')}
-                </Text>
-              )}
-            </View>
-            {/* Restore allergen badges row in expanded view */}
-            {isExpanded && item.allergenIngredients && Object.keys(item.allergenIngredients).length > 0 && (
-              <View style={styles.allergenListContainer}>
-                <View style={styles.allergenRow}>
-                  <Text style={{ fontSize: 16, color: '#000', fontWeight: '400', fontFamily: 'ReadexPro-Regular' }}>Contains:</Text>
-                  <View style={{ flexDirection: 'row', marginLeft: 8, flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 2 }}>
-                    {Object.keys(item.allergenIngredients).map((allergen, i) => {
-                      let key = allergen.toLowerCase().trim();
-                      if (key === 'peanuts') key = 'peanut';
-                      if (key === 'treenuts') key = 'tree nuts';
-                      if (key === 'eggs' || key === 'egg') key = 'eggs';
-                      if (key === 'shellfish') key = 'shellfish';
-                      if (key === 'dairy' || key === 'milk') key = 'milk';
-                      if (key === 'gluten' || key === 'wheat') key = 'gluten';
-                      if (key === 'soy') key = 'soy';
-                      if (key === 'sesame') key = 'sesame';
-                      const Icon = allergenIcons[key as keyof typeof allergenIcons];
-                      if (!Icon) console.warn('Missing allergen icon for', allergen, 'key:', key);
-                      return (
-                        <View key={i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8, marginBottom: 4 }}>
-                          {Icon ? <Icon width={20} height={20} style={{ marginRight: 4 }} /> : null}
-                          <Text style={{ color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 15 }}>{allergen}</Text>
-                        </View>
-                      );
-                    })}
+          <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'flex-start' }}>
+            <View style={styles.menuCardContent}>
+              <View style={styles.menuTextCenterer}>
+                <Text style={styles.menuItemName}>{item.name}</Text>
+                {isExpanded && (
+                  <Text style={{ fontSize: 16, color: '#666', marginTop: 8, fontFamily: 'ReadexPro-Regular', textAlign: 'center' }}>
+                    {Array.from(new Set(Object.values(item.allergenIngredients || {}).flat())).join(', ')}
+                  </Text>
+                )}
+              </View>
+              {/* Allergen tally icon at the right (only when not expanded) */}
+              {!isExpanded && (
+                <View style={{ marginRight: 4, marginLeft: 8, alignItems: 'center', justifyContent: 'center', position: 'absolute', right: 0, top: '50%', transform: [{ translateY: -14 }] }}>
+                  <View
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 7,
+                      backgroundColor: matchingAllergens.length > 0 ? '#ff4d4d' : '#4CAF50',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexDirection: 'row',
+                    }}
+                  >
+                    {matchingAllergens.length > 0 && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                        {Array.from({ length: matchingAllergens.length }).map((_, i) => (
+                          <View
+                            key={i}
+                            style={{
+                              width: 4,
+                              height: 16,
+                              borderRadius: 2,
+                              backgroundColor: '#fff',
+                              marginHorizontal: 1,
+                            }}
+                          />
+                        ))}
+                      </View>
+                    )}
                   </View>
                 </View>
-              </View>
-            )}
-            {/* Allergen tally icon at the right (only when not expanded) */}
-            {!isExpanded && (
-              <View style={{ marginRight: 4, marginLeft: 8, alignItems: 'center', justifyContent: 'center', position: 'absolute', right: 0, top: '50%', transform: [{ translateY: -14 }] }}>
-                <View
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 7,
-                    backgroundColor: item.allergenIngredients && Object.keys(item.allergenIngredients).length > 0 ? '#ff4d4d' : '#4CAF50',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexDirection: 'row',
-                  }}
-                >
-                  {item.allergenIngredients && Object.keys(item.allergenIngredients).length > 0 && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                      {Array.from({ length: Object.keys(item.allergenIngredients).length }).map((_, i) => (
-                        <View
-                          key={i}
-                          style={{
-                            width: 4,
-                            height: 16,
-                            borderRadius: 2,
-                            backgroundColor: '#fff',
-                            marginHorizontal: 1,
-                          }}
-                        />
-                      ))}
-                    </View>
-                  )}
+              )}
+            </View>
+            {/* Allergen badges row at the bottom when expanded */}
+            {isExpanded && matchingAllergens.length > 0 && (
+              <View style={[styles.allergenListContainer, { marginTop: 'auto' }]}> 
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 2 }}>
+                  {matchingAllergens.map((allergen, i) => {
+                    let key = allergen.toLowerCase().trim();
+                    if (key === 'peanuts') key = 'peanut';
+                    if (key === 'treenuts') key = 'tree nuts';
+                    if (key === 'eggs' || key === 'egg') key = 'eggs';
+                    if (key === 'shellfish') key = 'shellfish';
+                    if (key === 'dairy' || key === 'milk') key = 'milk';
+                    if (key === 'gluten' || key === 'wheat') key = 'gluten';
+                    if (key === 'soy') key = 'soy';
+                    if (key === 'sesame') key = 'sesame';
+                    const Icon = allergenIcons[key as keyof typeof allergenIcons];
+                    return (
+                      <View key={i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8, marginBottom: 4 }}>
+                        {Icon ? <Icon width={20} height={20} style={{ marginRight: 4 }} /> : null}
+                        <Text style={{ color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 15 }}>{allergen}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
             )}

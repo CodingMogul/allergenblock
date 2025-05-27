@@ -3,7 +3,10 @@
 export interface MenuItem {
   id?: string; // optional for flexibility
   name: string;
+  allergens: string[];
   allergenIngredients: Record<string, string[]>;
+  certainty?: number; // AI certainty score (0-1)
+  guessedAllergens?: boolean; // true if allergens are guessed from name only
 }
 
 export interface GooglePlace {
