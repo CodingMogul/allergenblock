@@ -377,6 +377,8 @@ export default function MenuScreen() {
   const Card = ({ item, index }: { item: MenuItem; index: number }) => {
     const isExpanded = expandedIndex === index;
     const [pressed, setPressed] = useState(false);
+    // Debug log for allergen mapping
+    console.log('[CARD DEBUG]', item.name, 'allergenIngredients:', item.allergenIngredients, 'allergens:', item.allergens);
 
     const baseCardStyle = [
       styles.menuCard,
@@ -407,6 +409,9 @@ export default function MenuScreen() {
         )
       : [];
 
+    // Determine font size based on name length
+    const nameFontSize = item.name.length > 20 ? 18 : 22;
+
     return (
       <Pressable
         onPressIn={() => setPressed(true)}
@@ -420,7 +425,7 @@ export default function MenuScreen() {
           <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'flex-start' }}>
             <View style={styles.menuCardContent}>
               <View style={styles.menuTextCenterer}>
-                <Text style={styles.menuItemName}>{item.name}</Text>
+                <Text style={[styles.menuItemName, { fontFamily: 'ReadexPro-Regular', fontSize: nameFontSize }]}>{item.name}</Text>
                 {isExpanded && (
                   <Text style={{ fontSize: 16, color: '#666', marginTop: 8, fontFamily: 'ReadexPro-Regular', textAlign: 'center' }}>
                     {Array.from(new Set(Object.values(item.allergenIngredients || {}).flat())).join(', ')}
