@@ -226,14 +226,14 @@ const FakeMenuCard = ({ onExpand }: { onExpand: () => void }) => {
               {Object.keys(item.allergenIngredients).map((allergen, i) => (
                 <View key={i} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffeaea', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8, marginBottom: 4 }}>
                   {/* You can add an icon here if desired, e.g. <Icon /> */}
-                  <Text style={{ color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 15 }}>{allergen}</Text>
+                  <Text style={{ color: '#DA291C', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: 22 }}>{allergen}</Text>
                 </View>
               ))}
             </View>
           </View>
         )}
       </View>
-      {/* Allergen tally square (red box) */}
+      {/* Allergen tally square (Epi Eats red box, bigger) */}
       {!expanded && (
         <TouchableOpacity
           style={styles.iconContainer}
@@ -243,7 +243,10 @@ const FakeMenuCard = ({ onExpand }: { onExpand: () => void }) => {
             style={[
               styles.icon,
               {
-                backgroundColor: matchCount > 0 ? '#ff4d4d' : '#4CAF50',
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                backgroundColor: matchCount > 0 ? '#DA291C' : '#4CAF50',
               }
             ]}
           >
@@ -253,11 +256,11 @@ const FakeMenuCard = ({ onExpand }: { onExpand: () => void }) => {
                   <View
                     key={i}
                     style={{
-                      width: 4,
-                      height: 16,
-                      borderRadius: 2,
+                      width: 6,
+                      height: 22,
+                      borderRadius: 3,
                       backgroundColor: '#fff',
-                      marginHorizontal: 1,
+                      marginHorizontal: 2,
                     }}
                   />
                 ))}
@@ -537,7 +540,7 @@ const OnboardingAddMenu = () => {
           <>
             <Animated.View style={{ position: 'absolute', width: '100%', alignItems: 'center', opacity: fadeAnim }} pointerEvents={step === 'magnifier' ? 'auto' : 'none'}>
               <AnimatedMagnifierPeanut />
-              <Text style={styles.searchingText}>Searching for allergens...</Text>
+              <SearchingDotsText />
             </Animated.View>
             <Animated.View style={{ position: 'absolute', width: '100%', alignItems: 'center', opacity: checkAnim }} pointerEvents={step === 'check' ? 'auto' : 'none'}>
               <FadeInCheck visible={step === 'check'} />
@@ -749,5 +752,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 });
+
+// Animated dots for 'Searching for allergens...'
+const SearchingDotsText = () => {
+  const [dotCount, setDotCount] = React.useState(1);
+  const [direction, setDirection] = React.useState(1); // 1 for increasing, -1 for decreasing
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setDotCount(prev => {
+        if (prev === 3) {
+          setDirection(-1);
+          return 2;
+        } else if (prev === 1) {
+          setDirection(1);
+          return 2;
+        } else {
+          return prev + direction;
+        }
+      });
+    }, 400);
+    return () => clearInterval(interval);
+  }, [direction]);
+  return (
+    <Text style={styles.searchingText}>
+      Searching for allergens{'.'.repeat(dotCount)}
+    </Text>
+  );
+};
 
 export default OnboardingAddMenu; 
