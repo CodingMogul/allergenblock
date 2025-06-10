@@ -172,8 +172,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   continueButtonText: {
-    color: '#000',
+    color: '#DA291C',
     fontSize: 20,
-    fontFamily: 'ReadexPro-Regular',
+    fontFamily: 'ReadexPro-Bold',
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });

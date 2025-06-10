@@ -488,12 +488,16 @@ const OnboardingAddMenu = () => {
     });
     setContinueVisible(false); // Hide continue button immediately
     setAnimationPaused(true);
-    setShowPermissionModal(true);
-    setTimeout(() => {
+    if (fromHelp) {
+      navigation.navigate('Home');
+    } else {
+      setShowPermissionModal(true);
       setTimeout(() => {
-        requestCamera();
-      }, 1000); // Wait 1s before checking camera permission
-    }, 0);
+        setTimeout(() => {
+          requestCamera();
+        }, 1000); // Wait 1s before checking camera permission
+      }, 0);
+    }
   };
   
 
@@ -524,8 +528,8 @@ const OnboardingAddMenu = () => {
   return (
     <View style={styles.container}>
       <Animated.View style={[styles.topSection, { opacity: textVisible ? textFadeAnim : 0 }]}> 
-        <Text style={styles.title}>Custom Allergy Menu</Text>
-        <Text style={styles.subtitle}>AI finds your allergens.</Text>
+        <Text style={styles.title}>Your allergy-safe menu</Text>
+        <Text style={styles.subtitle}>Refer to your safe meals anytime. No Wi-Fi needed.</Text>
       </Animated.View>
       <View style={styles.centeredContent}>
         {/* Animation Steps */}
@@ -705,9 +709,9 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   continueButtonText: {
-    color: '#000',
+    color: '#DA291C',
     fontSize: 20,
-    fontFamily: 'ReadexPro-Regular',
+    fontFamily: 'ReadexPro-Bold',
     fontWeight: 'bold',
     textAlign: 'center',
     paddingVertical: 12,

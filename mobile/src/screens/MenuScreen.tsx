@@ -61,6 +61,8 @@ import Beans from '../../assets/icons/Beans.svg';
 import Sesame from '../../assets/icons/Sesame.svg';
 import Carousel from 'react-native-reanimated-carousel';
 import { Asset } from 'expo-asset';
+import { FontAwesome } from '@expo/vector-icons';
+import Svg, { Path, G } from 'react-native-svg';
 
 const { width } = Dimensions.get('window');
 
@@ -191,6 +193,7 @@ export default function MenuScreen() {
   const [showOverlay, setShowOverlay] = useState(false);
   const overlayFade = useRef(new RNAnimated.Value(0)).current;
   const [preloadedVideoUri, setPreloadedVideoUri] = useState<string | null>(null);
+  const [peanutActive, setPeanutActive] = useState(false);
 
   const topAnimatedStyle = useAnimatedStyle(() => {
     const translateY = interpolate(scrollY.value, [0, 60, 180], [0, -10, -50], Extrapolate.CLAMP);
@@ -202,7 +205,15 @@ export default function MenuScreen() {
   });
 
   const onScroll = useAnimatedScrollHandler((event) => {
-    scrollY.value = event.contentOffset.y;
+    // Clamp scrollY to [0, 60] to restrict pull-down and swipe-up even more
+    const y = event.contentOffset.y;
+    if (y < 0) {
+      scrollY.value = 0;
+    } else if (y > 60) {
+      scrollY.value = 60;
+    } else {
+      scrollY.value = y;
+    }
   });
 
   useFocusEffect(
@@ -367,12 +378,20 @@ export default function MenuScreen() {
         };
       }).sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }
+    // Peanut button: filter out menu items with any allergen match
+    if (peanutActive && Array.isArray(profile.allergens) && profile.allergens.length > 0) {
+      list = list.filter(item => {
+        if (!item.allergens || !Array.isArray(item.allergens)) return true;
+        // If any allergen in item matches user's allergens, filter out
+        return !item.allergens.some(a => profile.allergens.map(x => x.toLowerCase()).includes(a.toLowerCase()));
+      });
+    }
     if (!debouncedSearchText.trim()) return list;
     const search = debouncedSearchText.trim().toLowerCase();
     return [...list]
       .map(item => ({ ...item, similarity: getSimilarity(item.name, debouncedSearchText) }))
       .sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
-  }, [menu, debouncedSearchText, locationFilter]);
+  }, [menu, debouncedSearchText, locationFilter, peanutActive, profile.allergens]);
 
   const Card = ({ item, index }: { item: MenuItem; index: number }) => {
     const isExpanded = expandedIndex === index;
@@ -412,6 +431,11 @@ export default function MenuScreen() {
     // Determine font size based on name length
     const nameFontSize = item.name.length > 20 ? 18 : 22;
 
+    // Truncate name if not expanded and too long
+    const MAX_NAME_LENGTH = 27;
+    const isTruncated = !isExpanded && item.name.length > MAX_NAME_LENGTH;
+    const displayName = isTruncated ? item.name.slice(0, MAX_NAME_LENGTH) + '…' : item.name;
+
     return (
       <Pressable
         onPressIn={() => setPressed(true)}
@@ -425,12 +449,9 @@ export default function MenuScreen() {
           <View style={{ flex: 1, flexDirection: 'column', justifyContent: 'flex-start' }}>
             <View style={styles.menuCardContent}>
               <View style={styles.menuTextCenterer}>
-                <Text style={[styles.menuItemName, { fontFamily: 'ReadexPro-Regular', fontSize: nameFontSize }]}>{item.name}</Text>
-                {isExpanded && (
-                  <Text style={{ fontSize: 16, color: '#666', marginTop: 8, fontFamily: 'ReadexPro-Regular', textAlign: 'center' }}>
-                    {Array.from(new Set(Object.values(item.allergenIngredients || {}).flat())).join(', ')}
-                  </Text>
-                )}
+                <Text style={[styles.menuItemName, { fontFamily: 'ReadexPro-Regular', fontSize: nameFontSize }]}>
+                  {isExpanded ? item.name : displayName}
+                </Text>
               </View>
               {/* Allergen tally icon at the right (only when not expanded) */}
               {!isExpanded && (
@@ -440,7 +461,7 @@ export default function MenuScreen() {
                       width: 28,
                       height: 28,
                       borderRadius: 7,
-                      backgroundColor: matchingAllergens.length > 0 ? '#ff4d4d' : '#4CAF50',
+                      backgroundColor: matchingAllergens.length > 0 ? '#DA291C' : '#4CAF50',
                       alignItems: 'center',
                       justifyContent: 'center',
                       flexDirection: 'row',
@@ -502,7 +523,9 @@ export default function MenuScreen() {
       <Animated.View style={topAnimatedStyle}>
         <View style={{ alignItems: 'center', marginBottom: 8, marginTop: 125 }}>
           {latestRestaurant.brandLogo && (
-            <Image source={{ uri: latestRestaurant.brandLogo }} style={{ width: 64, height: 64, marginBottom: 12 }} resizeMode="contain" />
+            <View style={{ width: 64, height: 64, marginBottom: 12, borderRadius: 10, overflow: 'hidden', backgroundColor: '#fff' }}>
+              <Image source={{ uri: latestRestaurant.brandLogo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </View>
           )}
           <Pressable
             onLongPress={handleEditRestaurantName}
@@ -518,24 +541,35 @@ export default function MenuScreen() {
             width: '100%',
             maxWidth: 420,
             alignSelf: 'center',
-            marginVertical: 0,
-            shadowColor: '#000',
-            shadowOpacity: 0.08,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 3,
-            backgroundColor: 'transparent',
+            marginTop: 10,
+            marginRight: 10,
             marginBottom: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
           }}>
             <View style={{
               flexDirection: 'row',
               alignItems: 'center',
               backgroundColor: '#fff',
               borderRadius: 28,
-              width: '100%',
               height: 56,
-              paddingHorizontal: 20,
+              flex: 1,
+              maxWidth: 340,
+              paddingLeft: 20,
+              paddingRight: 0,
+              shadowColor: '#000',
+              shadowOpacity: 0.03,
+              shadowRadius: 3,
+              shadowOffset: { width: 0, height: 1 },
+              elevation: 1,
             }}>
+              {searchText.length === 0 ? (
+                <FontAwesome name="search" size={28} color="#DA291C" style={{ marginRight: 12 }} />
+              ) : (
+                <TouchableOpacity onPress={() => setSearchText('')} accessibilityLabel="Clear search text" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <Feather name="x-circle" size={24} color="#bbb" style={{ marginRight: 12 }} />
+                </TouchableOpacity>
+              )}
               <RNTextInput
                 ref={searchInputRef}
                 style={{
@@ -544,6 +578,7 @@ export default function MenuScreen() {
                   fontFamily: 'ReadexPro-Regular',
                   color: '#222',
                   backgroundColor: 'transparent',
+                  height: 56,
                 }}
                 placeholder="Search menu items"
                 placeholderTextColor="#999"
@@ -551,28 +586,48 @@ export default function MenuScreen() {
                 onChangeText={setSearchText}
                 returnKeyType="search"
               />
-              {searchText.length > 0 && (
-                <TouchableOpacity onPress={() => setSearchText('')}>
-                  <Feather name="x-circle" size={24} color="#bbb" />
-                </TouchableOpacity>
-              )}
             </View>
+            <TouchableOpacity
+              onPress={() => setPeanutActive((prev) => !prev)}
+              style={{
+                marginLeft: 12,
+                borderRadius: 28,
+                width: 48,
+                height: 48,
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: peanutActive ? '#DA291C' : '#fff',
+                borderWidth: peanutActive ? 2 : 0,
+                borderColor: peanutActive ? '#fff' : 'transparent',
+                shadowColor: '#000',
+                shadowOpacity: 0.08,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+              accessibilityLabel="Peanut placeholder"
+            >
+              <Svg width={28} height={28} viewBox="0 0 24 24">
+                <Path
+                  d="M12 2c2.5 0 5 2 5 5c0 1.13 -0.37 2.16 -1 3c-0.28 0.38 -0.5 1 -0.5 1.5c0 0.5 0.2 0.91 0.5 1.23c0.93 0.98 1.5 2.31 1.5 3.77c0 3.04 -2.46 5.5 -5.5 5.5c-3.04 0 -5.5 -2.46 -5.5 -5.5c0 -1.46 0.57 -2.79 1.5 -3.77c0.3 -0.32 0.5 -0.73 0.5 -1.23c0 -0.5 -0.22 -1.12 -0.5 -1.5c-0.63 -0.84 -1 -1.87 -1 -3c0 -2.76 2 -5 5 -5Z"
+                  stroke={peanutActive ? '#fff' : '#DA291C'}
+                  strokeWidth={2}
+                  fill="none"
+                />
+                <G transform="rotate(45 12 12)">
+                  <Path
+                    d="M-1 11h24"
+                    stroke={peanutActive ? '#fff' : '#DA291C'}
+                    strokeWidth={2}
+                    fill="none"
+                  />
+                </G>
+              </Svg>
+            </TouchableOpacity>
           </View>
         </View>
       </Animated.View>
-      <LinearGradient
-        colors={['#fff', 'rgba(255,255,255,0)']}
-        style={{
-          width: '100%',
-          height: 32,
-          marginTop: -12,
-          marginBottom: 8,
-          zIndex: 2,
-        }}
-        pointerEvents="none"
-      />
     </>
-  ), [topAnimatedStyle, latestRestaurant, handleEditRestaurantName, searchText]);
+  ), [topAnimatedStyle, latestRestaurant, handleEditRestaurantName, searchText, peanutActive]);
 
   const handleHomePress = () => {
     setShowOverlay(true);
@@ -586,6 +641,12 @@ export default function MenuScreen() {
     console.log('---NAVIGATION LOG--- Navigating from MenuScreen to HomeScreen');
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
   };
+
+  const buttonFadeStyle = useAnimatedStyle(() => {
+    // Fade out as scrollY goes from 0 to 30, fully hidden at 30+
+    const opacity = interpolate(scrollY.value, [0, 30], [1, 0], Extrapolate.CLAMP);
+    return { opacity };
+  });
 
   return (
     <TouchableWithoutFeedback
@@ -611,20 +672,22 @@ export default function MenuScreen() {
             }}
           />
         )}
-        <TouchableOpacity
-          style={[styles.homeButton, { backgroundColor: '#fff', borderRadius: 18, width: 36, height: 36, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }]}
-          onPress={handleHomePress}
-          accessibilityLabel="Go to Home"
-        >
-          <Feather name="home" size={28} color="#222" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.profileButton, { backgroundColor: '#fff', borderRadius: 18, width: 36, height: 36, justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 }]}
-          onPress={openAllergenModal}
-          accessibilityLabel="Profile"
-        >
-          <Feather name="user" size={30} color="#222" />
-        </TouchableOpacity>
+        <Animated.View style={[styles.homeButtonLeft, buttonFadeStyle]} pointerEvents={undefined}>
+          <TouchableOpacity
+            onPress={handleHomePress}
+            accessibilityLabel="Go to Home"
+          >
+            <FontAwesome name="home" size={30} color="#DA291C" />
+          </TouchableOpacity>
+        </Animated.View>
+        <Animated.View style={[styles.profileButtonRight, buttonFadeStyle]} pointerEvents={undefined}>
+          <TouchableOpacity
+            onPress={openAllergenModal}
+            accessibilityLabel="Profile"
+          >
+            <FontAwesome name="user" size={30} color="#DA291C" />
+          </TouchableOpacity>
+        </Animated.View>
 
         <Modal
           visible={modalVisible}
@@ -775,10 +838,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#ffffff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 6,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'visible',
@@ -836,27 +899,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'ReadexPro-Regular',
   },
-  homeButton: {
+  homeButtonLeft: {
     position: 'absolute',
     top: 80,
     left: 24,
     zIndex: 20,
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  profileButton: {
+  profileButtonRight: {
     position: 'absolute',
     top: 80,
     right: 24,
-    zIndex: 10,
-    width: 36,
-    height: 36,
+    zIndex: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
   },
   modalOverlay: {
     flex: 1,

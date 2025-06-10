@@ -69,7 +69,7 @@ export default function OnboardingCarouselDemo() {
   const videoRef = useRef<any>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const isMountedRef = useRef(true);
-  const hapticTimeouts: NodeJS.Timeout[] = [];
+  const hapticTimeouts: number[] = [];
   const fromHelp = (route as any).params?.fromHelp;
   const continueTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -111,7 +111,7 @@ export default function OnboardingCarouselDemo() {
       }
     };
     loop();
-    return cancelLoop;
+    return () => { isMountedRef.current = false; };
   }, []);
 
   // If not preloaded, load the video asset
@@ -128,7 +128,7 @@ export default function OnboardingCarouselDemo() {
   // Show continue button 1.2s after video is ready
   useEffect(() => {
     if (videoReady) {
-      continueTimerRef.current = setTimeout(() => {
+      const timer = setTimeout(() => {
         setShowContinue(true);
         Animated.timing(continueFade, {
           toValue: 1,
@@ -180,8 +180,8 @@ export default function OnboardingCarouselDemo() {
           </TouchableOpacity>
         </View>
       )}
-      <Text style={styles.title}>Build your allergy profile</Text>
-      <Text style={styles.subtitle}>Select the allergens you have.</Text>
+      <Text style={styles.title}>What do you avoid?</Text>
+      <Text style={styles.subtitle}>Pick your allergens so we can filter menus for you</Text>
       <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center' }}>
         <Animated.View style={{ opacity: fadeAnim, width: '100%', alignItems: 'center', justifyContent: 'center' }}>
           <Carousel
@@ -253,7 +253,7 @@ export default function OnboardingCarouselDemo() {
       }} pointerEvents={showContinue ? 'auto' : 'none'}>
         {showContinue && (
           <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
-            <Text style={styles.continueButtonText}>Continue →</Text>
+            <Text style={styles.continueButtonText}>Scan a menu →</Text>
           </TouchableOpacity>
         )}
       </Animated.View>
@@ -320,10 +320,10 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   continueButtonText: {
-    color: '#000',
+    color: '#DA291C',
     fontSize: 20,
     fontWeight: 'bold',
-    fontFamily: 'ReadexPro-Regular',
+    fontFamily: 'ReadexPro-Bold',
     textAlign: 'center',
     paddingVertical: 12,
     paddingHorizontal: 32,

@@ -21,7 +21,7 @@ const CameraScreen = () => {
   const [camReady, setCamReady] = useState(false);
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
+    let timeout: number;
     if (permission?.granted) {
       timeout = setTimeout(() => {
         setCamReady(true);

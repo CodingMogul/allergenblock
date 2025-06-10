@@ -21,6 +21,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   useWindowDimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
@@ -34,12 +36,12 @@ import {
   State as GestureState,
 } from 'react-native-gesture-handler';
 import * as ImagePicker from 'expo-image-picker';
-import { MaterialIcons, Feather, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialIcons, Feather, FontAwesome5, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
-import { Animated, Easing } from 'react-native';
+import { Easing } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { deleteRestaurant, editRestaurant, getRestaurants, addRestaurant } from '../storage/restaurantStorage';
 import { fetchGooglePlace } from '../api/googleApi';
@@ -51,6 +53,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import type { TextInput as RNTextInput } from 'react-native';
 import { RootStackParamList } from '../screens/types/navigation';
 import { Asset } from 'expo-asset';
+import Svg, { Path } from 'react-native-svg';
+import MenuSvg from '../../assets/icons/menu.svg';
+import { Animated as RNAnimated } from 'react-native';
 
 type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
 
@@ -173,16 +178,16 @@ const HomeScreen = () => {
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
   const [showNoMenuModal, setShowNoMenuModal] = useState(false);
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
-  const [cardAnim] = React.useState(new Animated.Value(0));
-  const noMenuFadeAnim = React.useRef(new Animated.Value(1)).current;
-  const magnifierFadeAnim = React.useRef(new Animated.Value(1)).current;
-  const cautionFadeAnim = React.useRef(new Animated.Value(0)).current;
+  const [cardAnim] = React.useState(new RNAnimated.Value(0));
+  const noMenuFadeAnim = React.useRef(new RNAnimated.Value(1)).current;
+  const magnifierFadeAnim = React.useRef(new RNAnimated.Value(1)).current;
+  const cautionFadeAnim = React.useRef(new RNAnimated.Value(0)).current;
   // Success overlay animation values
-  const successMagnifierFadeAnim = React.useRef(new Animated.Value(1)).current;
-  const successCheckFadeAnim = React.useRef(new Animated.Value(0)).current;
+  const successMagnifierFadeAnim = React.useRef(new RNAnimated.Value(1)).current;
+  const successCheckFadeAnim = React.useRef(new RNAnimated.Value(0)).current;
   const [showHomeFadeIn, setShowHomeFadeIn] = useState(false);
-  const homeFadeAnim = useRef(new Animated.Value(0)).current;
-  const [successOverlayAnim] = useState(new Animated.Value(1));
+  const homeFadeAnim = useRef(new RNAnimated.Value(0)).current;
+  const [successOverlayAnim] = useState(new RNAnimated.Value(1));
   // Add state for edit modal
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editNameInput, setEditNameInput] = useState('');
@@ -201,13 +206,16 @@ const HomeScreen = () => {
   const [preloadedVideoUri, setPreloadedVideoUri] = useState<string | null>(null);
   const { width: windowWidth } = useWindowDimensions();
 
-  const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+  const AnimatedTouchableOpacity = RNAnimated.createAnimatedComponent(TouchableOpacity);
+
+  // Use React state for scrollY (for fade effect)
+  const [scrollY, setScrollY] = useState(0);
 
   // Fetch restaurants function (moved outside useEffect for reuse)
   const fetchRestaurants = async () => {
     setNetworkError(false);
     setLoading(true);
-    let timeout: NodeJS.Timeout | null = null;
+    let timeout: number | null = null;
     timeout = setTimeout(() => {
       setNetworkError(true);
       setLoading(false);
@@ -294,6 +302,18 @@ const HomeScreen = () => {
           similarity: getSimilarity(r.restaurantName, search)
         }))
         .sort((a, b) => b.similarity - a.similarity);
+      // If user location is available, filter Google-matched restaurants to within 10 miles
+      if (locationFilter) {
+        list = list.filter(r => {
+          if (r.apimatch === 'google' && r.location && r.location.coordinates) {
+            const lat = r.location.coordinates[1] ?? 0;
+            const lng = r.location.coordinates[0] ?? 0;
+            const dist = getDistance(locationFilter.lat, locationFilter.lng, lat, lng) * 0.621371; // km to miles
+            return dist <= 10;
+          }
+          return true;
+        });
+      }
     } else if (locationFilter) {
       // If location filter is active, sort by distance only (do not filter by distance)
       list = list
@@ -385,10 +405,10 @@ const HomeScreen = () => {
               const newCard = list.find(r => r.id === newRestaurant.id);
               if (newCard) {
                 setNewlyAddedRestaurantId(newCard.id);
-                Animated.sequence([
-                  Animated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
-                  Animated.delay(1000),
-                  Animated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
+                RNAnimated.sequence([
+                  RNAnimated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+                  RNAnimated.delay(1000),
+                  RNAnimated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
                 ]).start(() => setNewlyAddedRestaurantId(null));
               }
             });
@@ -512,8 +532,7 @@ const HomeScreen = () => {
   useEffect(() => {
     if ((route as any).params?.fadeIn) {
       setShowHomeFadeIn(true);
-      homeFadeAnim.setValue(0);
-      Animated.timing(homeFadeAnim, {
+      RNAnimated.timing(homeFadeAnim, {
         toValue: 1,
         duration: 600,
         useNativeDriver: true,
@@ -570,7 +589,7 @@ const HomeScreen = () => {
   }: {
     item: RestaurantWithDistance & { apimatch?: string };
     isNew: boolean;
-    cardAnim: Animated.Value;
+    cardAnim: RNAnimated.Value;
     locationFilter: { lat: number; lng: number } | null;
     distance: number | null;
     handlePress: (item: RestaurantWithDistance) => void;
@@ -627,9 +646,10 @@ const HomeScreen = () => {
               {
                 backgroundColor: pressed ? '#f0f0f0' : '#fff',
                 transform: pressed ? [{ scale: 1.04 }] : [],
-                shadowOffset: pressed ? { width: 0, height: 4 } : { width: 0, height: 10 },
-                shadowOpacity: pressed ? 0.25 : 0.15,
-                elevation: pressed ? 16 : 12,
+                shadowOffset: pressed ? { width: 0, height: 4 } : { width: 0, height: 4 },
+                shadowOpacity: pressed ? 0.18 : 0.10,
+                shadowRadius: 8,
+                elevation: pressed ? 10 : 6,
                 minHeight: 120,
                 paddingVertical: 28,
                 paddingHorizontal: 32,
@@ -639,17 +659,19 @@ const HomeScreen = () => {
           >
             {/* Only show logo for Google-matched cards */}
             {item.apimatch === 'google' && item.brandLogo ? (
-              <Image source={{ uri: item.brandLogo }} style={{ width: 36, height: 36, marginRight: 0 }} resizeMode="contain" />
+              <View style={{ width: 36, height: 36, marginRight: 0, borderRadius: 10, overflow: 'hidden', backgroundColor: '#fff' }}>
+                <Image source={{ uri: item.brandLogo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              </View>
             ) : (
               <View style={{ width: 36, height: 36, marginRight: 0 }} />
             )}
             <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', marginLeft: 60 }}>
-              <Animated.Text style={[
+              <RNAnimated.Text style={[
                 styles.name,
                 { color: textColor, textAlign: 'left', alignSelf: 'flex-start', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: getDynamicNameFontSize(getDisplayName(item)) }
               ]}>
                 {getDisplayName(item)}
-              </Animated.Text>
+              </RNAnimated.Text>
               {locationFilter && distance !== null && (
                 <Text style={[styles.distanceText, { textAlign: 'left', alignSelf: 'flex-start' }]}> 
                   <Text style={{ fontStyle: 'italic', color: '#555' }}>{distance.toFixed(1)} miles away</Text>
@@ -665,17 +687,25 @@ const HomeScreen = () => {
   // Crossfade from magnifier to caution when no menu is detected
   useEffect(() => {
     if (showNoMenuModal) {
-      magnifierFadeAnim.setValue(1);
-      cautionFadeAnim.setValue(0);
+      RNAnimated.timing(magnifierFadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+      RNAnimated.timing(cautionFadeAnim, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
       // Show magnifier for 2.5s, then crossfade to caution for 1.2s, then fade out and go home
       const magnifierTimeout = setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(magnifierFadeAnim, {
+        RNAnimated.parallel([
+          RNAnimated.timing(magnifierFadeAnim, {
             toValue: 0,
             duration: 400,
             useNativeDriver: true,
           }),
-          Animated.timing(cautionFadeAnim, {
+          RNAnimated.timing(cautionFadeAnim, {
             toValue: 1,
             duration: 400,
             useNativeDriver: true,
@@ -683,7 +713,7 @@ const HomeScreen = () => {
         ]).start();
         // After caution is shown for 2.5s, fade out and go home
         setTimeout(() => {
-          Animated.timing(cautionFadeAnim, {
+          RNAnimated.timing(cautionFadeAnim, {
             toValue: 0,
             duration: 400,
             useNativeDriver: true,
@@ -700,9 +730,13 @@ const HomeScreen = () => {
   // Success overlay: fade out overlay before navigating home
   useEffect(() => {
     if (showSuccessOverlay) {
-      successOverlayAnim.setValue(1);
+      RNAnimated.timing(successOverlayAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
       const timeout = setTimeout(() => {
-        Animated.timing(successOverlayAnim, {
+        RNAnimated.timing(successOverlayAnim, {
           toValue: 0,
           duration: 500,
           useNativeDriver: true,
@@ -784,10 +818,10 @@ const HomeScreen = () => {
       // Add a buffer before animating to ensure state is updated and avoid glitches
       setTimeout(() => {
         setNewlyAddedRestaurantId(editingRestaurant.id);
-        Animated.sequence([
-          Animated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
-          Animated.delay(1000),
-          Animated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
+        RNAnimated.sequence([
+          RNAnimated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+          RNAnimated.delay(1000),
+          RNAnimated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
         ]).start(() => setNewlyAddedRestaurantId(null));
       }, 200); // 200ms buffer
     } catch (e: any) {
@@ -827,56 +861,78 @@ const HomeScreen = () => {
     setShowNoMenuModal(false);
   }
 
-  // Memoized ListHeaderComponent for FlatList (like MenuScreen)
+  // Animated fade for help/profile buttons and title
+  const buttonFade = scrollY <= 0 ? 1 : scrollY >= 70 ? 0 : 1 - scrollY / 70;
+  const buttonFadeStyle = { opacity: buttonFade };
+
   const listHeader = useMemo(() => (
     <>
-      <View style={{ alignItems: 'center', marginBottom: 8, marginTop: 150 }}>
+      <View style={{ position: 'absolute', top: 25, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
         <TouchableOpacity onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           setCautionModalVisible(true);
         }}>
-          <Text style={[styles.title, { fontSize: getDynamicTitleFontSize('EpiEats') }]}>
+          <Text style={[styles.title, { fontSize: 28, marginBottom: 0 }]}> 
             <Text style={[styles.epi, cautionModalVisible && { color: '#DA291C' }]}>Epi</Text>
             <Text style={[styles.eats, cautionModalVisible && { color: '#DA291C' }]}>Eats</Text>
           </Text>
         </TouchableOpacity>
-        <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center', marginTop: 32, marginBottom: 40, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3, backgroundColor: 'transparent', zIndex: 100 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 28, width: '100%', height: 56, paddingHorizontal: 20 }}>
+      </View>
+      {restaurants.length > 0 && (
+        <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center', marginTop: 140, marginBottom: 40, flexDirection: 'row', alignItems: 'center', zIndex: 100 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 28, height: 56, paddingLeft: 20, paddingRight: 0, flex: 1, minWidth: 0, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
+            {searchBarVisible ? (
+              <TouchableOpacity onPress={() => { setSearchText(''); setSearchBarVisible(false); }} accessibilityLabel="Clear search text" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="x-circle" size={24} color="#bbb" style={{ marginRight: 12 }} />
+              </TouchableOpacity>
+            ) : (
+              <FontAwesome name="search" size={28} color="#DA291C" style={{ marginRight: 12 }} />
+            )}
             <TextInput
               ref={ref => {
                 searchInputRef.current = ref;
                 if (ref) console.log('[DEBUG] searchInputRef set', ref);
               }}
-              style={{ flex: 1, fontSize: 18, fontFamily: 'ReadexPro-Regular', color: '#222', backgroundColor: 'transparent' }}
+              style={{ flex: 1, fontSize: 18, fontFamily: 'ReadexPro-Regular', color: '#222', backgroundColor: 'transparent', height: 56 }}
               placeholder="Search restaurants"
               placeholderTextColor="#999"
               value={searchText}
               onChangeText={setSearchText}
               returnKeyType="search"
+              onFocus={() => setSearchBarVisible(true)}
+              onBlur={() => { if (!searchText) setSearchBarVisible(false); }}
             />
-            {searchText.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchText('')} accessibilityLabel="Clear search text" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Feather name="x-circle" size={24} color="#bbb" />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              onPress={async () => {
-                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                if (locationFilter) {
-                  setLocationFilter(null);
-                } else {
-                  await handleLocationPress();
-                }
-              }}
-              style={{ marginLeft: 12, borderRadius: 22, width: 44, height: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: 'transparent' }}
-            >
-              <Feather name="map-pin" size={30} color={locationFilter ? '#DA291C' : '#000'} />
-            </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            onPress={async () => {
+              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (locationFilter) {
+                setLocationFilter(null);
+              } else {
+                await handleLocationPress();
+              }
+            }}
+            style={{
+              marginLeft: 12,
+              borderRadius: 28,
+              width: 48,
+              height: 48,
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: locationFilter ? '#DA291C' : '#fff',
+              shadowColor: '#000',
+              shadowOpacity: 0.08,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+            accessibilityLabel="Location"
+          >
+            <Feather name="map-pin" size={28} color={locationFilter ? '#fff' : '#DA291C'} />
+          </TouchableOpacity>
         </View>
-      </View>
+      )}
     </>
-  ), [setCautionModalVisible, setSearchBarVisible, setLocationFilter, locationFilter, searchBarVisible, searchText, windowWidth, cautionModalVisible]);
+  ), [setCautionModalVisible, setSearchBarVisible, setLocationFilter, locationFilter, searchBarVisible, searchText, windowWidth, cautionModalVisible, restaurants.length, buttonFadeStyle]);
 
   useEffect(() => {
     setDebouncedSearchText(searchText);
@@ -899,9 +955,15 @@ const HomeScreen = () => {
     }
   };
 
+  // Standard onScroll handler for FlatList
+  const onScroll = (event) => {
+    const y = event.nativeEvent.contentOffset.y;
+    setScrollY(y < -20 ? -20 : y);
+  };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <Animated.View style={[styles.container, showHomeFadeIn ? { opacity: homeFadeAnim } : {}]}>
+      <RNAnimated.View style={[styles.container, showHomeFadeIn ? { opacity: homeFadeAnim } : {}]}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           {/* Overlays should be rendered last so they are above all content */}
           {/* Main content */}
@@ -935,9 +997,25 @@ const HomeScreen = () => {
               );
             }}
             keyExtractor={item => item.id + '-' + (item.apimatch || 'custom')}
-            contentContainerStyle={[styles.listContainer, { paddingHorizontal: 20 }]}
+            contentContainerStyle={[styles.listContainer, { paddingHorizontal: 20, paddingTop: 55 }]}
             ListHeaderComponent={listHeader}
-            ListFooterComponent={loading ? () => <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text> : null}
+            ListFooterComponent={
+              loading
+                ? () => <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text>
+                : restaurants.length === 0
+                  ? () => (
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>Scan your first menu!</Text>
+                        <MenuSvg width={72} height={72} style={styles.menuSvg} color="#E0E0E0" />
+                        <Svg width={64} height={64} viewBox="0 0 64 64" style={styles.downArrowSvg}>
+                          <Path d="M32 8v40M32 48l-16-16M32 48l16-16" stroke="#E0E0E0" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
+                        </Svg>
+                      </View>
+                    )
+                  : null
+            }
+            onScroll={onScroll}
+            scrollEventThrottle={16}
           />
 
           <View style={styles.bottomBar}>
@@ -947,7 +1025,7 @@ const HomeScreen = () => {
                 onPress={takePhoto}
                 accessibilityLabel="Add menu photo"
               >
-                <Feather name="camera" size={36} color="#222" />
+                <FontAwesome name="camera" size={36} color="#DA291C" />
               </TouchableOpacity>
             </View>
           </View>
@@ -988,26 +1066,26 @@ const HomeScreen = () => {
           )}
 
           {showSuccessOverlay && (
-            <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, opacity: successOverlayAnim }]} pointerEvents="auto">
+            <RNAnimated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, opacity: successOverlayAnim }]} pointerEvents="auto">
               <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                 <FadeInCheck visible={showSuccessOverlay} />
               </View>
-            </Animated.View>
+            </RNAnimated.View>
           )}
 
           {showNoMenuModal && (
-            <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
+            <RNAnimated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
               <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
               <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Animated.View style={{ position: 'absolute', opacity: magnifierFadeAnim }}>
+                <RNAnimated.View style={{ position: 'absolute', opacity: magnifierFadeAnim }}>
                   <AnimatedMagnifierPeanut />
-                </Animated.View>
-                <Animated.View style={{ position: 'absolute', opacity: cautionFadeAnim }}>
+                </RNAnimated.View>
+                <RNAnimated.View style={{ position: 'absolute', opacity: cautionFadeAnim }}>
                   <AnimatedCaution />
-                </Animated.View>
+                </RNAnimated.View>
               </View>
-            </Animated.View>
+            </RNAnimated.View>
           )}
 
           <Modal
@@ -1207,20 +1285,23 @@ const HomeScreen = () => {
             </View>
           </Modal>
 
-          {/* Floating profile button in top left */}
-          <TouchableOpacity style={styles.profileButtonLeft} onPress={goToProfileSetup} accessibilityLabel="Profile">
-            <Feather name="user" size={30} color="#222" />
-          </TouchableOpacity>
-          {/* Floating help button in top right */}
-          <TouchableOpacity
-            style={styles.helpButtonRight}
-            onPress={() => navigation.navigate('OnboardingCarouselDemo' as any, { fromHelp: true, preloadedVideoUri })}
-            accessibilityLabel="Help"
-          >
-            <Feather name="help-circle" size={30} color="#222" />
-          </TouchableOpacity>
+          {/* Floating help button in top left */}
+          <RNAnimated.View style={[styles.helpButtonLeft, buttonFadeStyle]} pointerEvents={undefined}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('OnboardingCarouselDemo' as any, { fromHelp: true, preloadedVideoUri })}
+              accessibilityLabel="Help"
+            >
+              <FontAwesome name="question-circle" size={30} color="#DA291C" />
+            </TouchableOpacity>
+          </RNAnimated.View>
+          {/* Floating profile button in top right */}
+          <RNAnimated.View style={[styles.profileButtonRight, buttonFadeStyle]} pointerEvents={undefined}>
+            <TouchableOpacity onPress={goToProfileSetup} accessibilityLabel="Profile">
+              <FontAwesome name="user" size={30} color="#DA291C" />
+            </TouchableOpacity>
+          </RNAnimated.View>
         </GestureHandlerRootView>
-      </Animated.View>
+      </RNAnimated.View>
     </TouchableWithoutFeedback>
   );
 };
@@ -1237,9 +1318,9 @@ const styles = StyleSheet.create({
   },
   title: {
     flexDirection: 'row',
-    fontSize: 54,
+    fontSize: 28,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 0,
   },
   epi: {
     fontFamily: 'ReadexPro-Regular',
@@ -1285,10 +1366,10 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: '#fff',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 10,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'visible',
@@ -1399,6 +1480,61 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
+  helpButtonLeft: {
+    position: 'absolute',
+    top: 80,
+    left: 24,
+    zIndex: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  profileButtonRight: {
+    position: 'absolute',
+    top: 80,
+    right: 24,
+    zIndex: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 320,
+    marginBottom: 120,
+  },
+  emptyText: {
+    color: '#E0E0E0',
+    fontWeight: 'bold',
+    fontSize: 26,
+    textAlign: 'center',
+    marginBottom: 24,
+    fontFamily: 'ReadexPro-Bold',
+  },
+  downArrowSvg: {
+    marginTop: -10,
+    alignSelf: 'center',
+  },
+  menuSvg: {
+    marginBottom: 32,
+    alignSelf: 'center',
+  },
 });
 
 // AnimatedMagnifierPeanut: magnifying glass animates in a tight circle, centered on the screen, with text below
@@ -1450,10 +1586,10 @@ const AnimatedDots = () => {
 
 // Restore FadeInCheck with internal animation and visible prop
 const FadeInCheck = ({ visible }: { visible: boolean }) => {
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const fadeAnim = React.useRef(new RNAnimated.Value(0)).current;
   React.useEffect(() => {
     if (visible) {
-      Animated.timing(fadeAnim, {
+      RNAnimated.timing(fadeAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
@@ -1463,28 +1599,28 @@ const FadeInCheck = ({ visible }: { visible: boolean }) => {
     }
   }, [visible]);
   return (
-    <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
+    <RNAnimated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
       <Feather name="check" size={120} color="#22c55e" style={{ fontWeight: 'bold' }} />
       <Text style={{ marginTop: 32, fontSize: 36, color: '#22c55e', fontWeight: 'bold', letterSpacing: 1 }}>Success!</Text>
-    </Animated.View>
+    </RNAnimated.View>
   );
 };
 
 // AnimatedCaution: yellow caution symbol with text, for no menu detected
 const AnimatedCaution = () => {
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const fadeAnim = React.useRef(new RNAnimated.Value(0)).current;
   React.useEffect(() => {
-    Animated.timing(fadeAnim, {
+    RNAnimated.timing(fadeAnim, {
       toValue: 1,
       duration: 400,
       useNativeDriver: true,
     }).start();
   }, []);
   return (
-    <Animated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
+    <RNAnimated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
       <Feather name="alert-triangle" size={120} color="#FFD600" style={{ fontWeight: 'bold' }} />
       <Text style={{ marginTop: 32, fontSize: 36, color: '#FFD600', fontWeight: 'bold', letterSpacing: 1 }}>No Menu Detected</Text>
-    </Animated.View>
+    </RNAnimated.View>
   );
 };
 

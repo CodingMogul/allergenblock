@@ -43,9 +43,6 @@ const OnboardingScanDemo = () => {
   const subtitleFade = useRef(new Animated.Value(0)).current;
   const [subtitleDone, setSubtitleDone] = useState(false);
 
-  const textSlideAnim = useRef(new Animated.Value(0)).current; // 0=center, 1=top
-  const videoSlideAnim = useRef(new Animated.Value(0)).current; // 0=offscreen, 1=final
-
   const preloadedVideoUri = (route as any).params?.preloadedVideoUri;
   const [videoUri, setVideoUri] = useState<string | null>(preloadedVideoUri || null);
   const fromHelp = (route as any).params?.fromHelp;
@@ -61,41 +58,18 @@ const OnboardingScanDemo = () => {
     }
   }, []);
 
-  // Animation sequence: fade in title/subtitle, then slide up, then slide in video, then show continue button
+  // Animation: only slide up the video when ready
   useEffect(() => {
     if (isReady) {
-      fadeAnim.setValue(1); // Make video container visible (but video itself will animate in)
-      // 1. Fade in title/subtitle
-      Animated.parallel([
-        Animated.timing(titleFade, {
+      fadeAnim.setValue(1);
+      setTimeout(() => {
+        Animated.timing(slideAnim, {
           toValue: 1,
-          duration: 500,
+          duration: 1200,
+          easing: Easing.out(Easing.exp),
           useNativeDriver: true,
-        }),
-        Animated.timing(subtitleFade, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        })
-      ]).start(() => {
-        // 2. Wait 500ms, then slide up title/subtitle
-        setTimeout(() => {
-          Animated.timing(textSlideAnim, {
-            toValue: 1,
-            duration: 1200,
-            easing: Easing.out(Easing.exp),
-            useNativeDriver: true,
-          }).start(() => {
-            // 3. Slide in video from below
-            Animated.timing(videoSlideAnim, {
-              toValue: 1,
-              duration: 900,
-              easing: Easing.out(Easing.exp),
-              useNativeDriver: true,
-            }).start(() => setSlideUpComplete(true));
-          });
-        }, 500);
-      });
+        }).start(() => setSlideUpComplete(true));
+      }, 150);
     }
   }, [isReady]);
 
@@ -144,42 +118,19 @@ const OnboardingScanDemo = () => {
           </TouchableOpacity>
         </View>
       )}
-      {showText && (
-        <Animated.View
-          style={[
-            styles.topSection,
-            {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              width: '100%',
-              alignItems: 'center',
-              zIndex: 10,
-              opacity: titleFade,
-              // Slide up after fade-in
-              transform: [
-                {
-                  translateY: textSlideAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [ (Dimensions.get('window').height) / 2 - 60, 60 ],
-                  })
-                }
-              ],
-            },
-          ]}
-        >
-          <Animated.Text style={[styles.title, { opacity: titleFade }]}>Capture a menu</Animated.Text>
-          <Animated.Text style={[styles.subtitle, { opacity: subtitleFade }]}>And get allergen info</Animated.Text>
-          {/* Continue button 35px below subtitle */}
-          <Animated.View style={{ opacity: continueFade, marginTop: 35, alignItems: 'center', alignSelf: 'center' }} pointerEvents={showContinue ? 'auto' : 'none'}>
-            {showContinue && (
-              <TouchableOpacity style={styles.continueButton} onPress={() => navigation.navigate('OnboardingAddMenu' as any, { preloadedVideoUri: videoUri, fromHelp })}>
-                <Text style={styles.continueButtonText}>Continue →</Text>
-              </TouchableOpacity>
-            )}
-          </Animated.View>
+      {/* Title and subtitle always visible, no animation */}
+      <View style={[styles.topSection, { position: 'absolute', left: 0, right: 0, width: '100%', alignItems: 'center', zIndex: 10 }]}> 
+        <Text style={styles.title}>Scan real menus</Text>
+        <Text style={styles.subtitle}>Take a photo of any menu. AI will flag unsafe items based on your profile.</Text>
+        {/* Continue button 35px below subtitle */}
+        <Animated.View style={{ opacity: continueFade, marginTop: 35, alignItems: 'center', alignSelf: 'center' }} pointerEvents={showContinue ? 'auto' : 'none'}>
+          {showContinue && (
+            <TouchableOpacity style={styles.continueButton} onPress={() => navigation.navigate('OnboardingAddMenu' as any, { preloadedVideoUri: videoUri, fromHelp })}>
+              <Text style={styles.continueButtonText}>See Your Safe Menu →</Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
-      )}
+      </View>
 
       {/* Video */}
       <Animated.View style={{
@@ -192,10 +143,10 @@ const OnboardingScanDemo = () => {
         alignItems: 'center',
         marginBottom: 0,
         opacity: fadeAnim,
-        // Slide in from below after text slides up
+        // Slide in from below after text slides up (use slideAnim)
         transform: [
           {
-            translateY: videoSlideAnim.interpolate({
+            translateY: slideAnim.interpolate({
               inputRange: [0, 1],
               outputRange: [Dimensions.get('window').height, 290],
             })
@@ -209,6 +160,7 @@ const OnboardingScanDemo = () => {
             style={styles.video}
             resizeMode={ResizeMode.CONTAIN}
             isLooping={true}
+            shouldPlay={true}
             onLoad={() => setIsReady(true)}
             onError={(e) => console.log('Video error', e)}
           />
@@ -238,7 +190,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#DA291C',
     fontFamily: 'ReadexPro-Bold',
-    marginTop: 80,
+    marginTop: 150,
     marginBottom: 0,
     textAlign: 'center',
   },
@@ -269,9 +221,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   continueButtonText: {
-    color: '#000',
+    color: '#DA291C',
     fontSize: 20,
-    fontFamily: 'ReadexPro-Regular',
+    fontFamily: 'ReadexPro-Bold',
     fontWeight: 'bold',
     textAlign: 'center',
     paddingVertical: 0,

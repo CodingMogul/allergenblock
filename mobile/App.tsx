@@ -20,14 +20,14 @@ import Welcome from './src/screens/Welcome';
 import SplashScreen from './src/screens/SplashScreen';
 import { OnboardingVideoProvider } from './src/context/OnboardingVideoContext';
 
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<RootStackParamList>();
 
 export default function App() {
   const [fontsLoaded] = Font.useFonts({
     'ReadexPro-Regular': require('./assets/fonts/ReadexPro-Regular.ttf'),
     'ReadexPro-Bold': require('./assets/fonts/ReadexPro-Bold.ttf'),
   });
-  const [initialRoute, setInitialRoute] = React.useState<string | null>(null);
+  const [initialRoute, setInitialRoute] = React.useState<keyof RootStackParamList | null>(null);
   const [showSplash, setShowSplash] = React.useState(false);
 
   // --- UPDATED NAVIGATION LOGIC ---
@@ -79,18 +79,19 @@ export default function App() {
                 cardStyle: { backgroundColor: '#fff' },
               }}
             >
-              <Stack.Screen name="Splash" component={SplashScreen} />
-              <Stack.Screen name="Login" component={LoginScreen} />
-              <Stack.Screen name="OnboardingCarouselDemo" component={OnboardingCarouselDemo} />
-              <Stack.Screen name="OnboardingScanDemo" component={OnboardingScanDemo} />
-              <Stack.Screen name="OnboardingAddMenu" component={OnboardingAddMenu} />
-              <Stack.Screen name="ProfileSetup" component={ProfileSetup} />
-              <Stack.Screen name="Camera" component={CameraScreen} />
-              <Stack.Screen name="Welcome" component={Welcome} />
+              <Stack.Screen name="Splash" component={SplashScreen} options={{ gestureEnabled: false }} />
+              <Stack.Screen name="Login" component={LoginScreen} options={{ gestureEnabled: false }} />
+              <Stack.Screen name="OnboardingCarouselDemo" component={OnboardingCarouselDemo} options={{ gestureEnabled: false }} />
+              <Stack.Screen name="OnboardingScanDemo" component={OnboardingScanDemo} options={{ gestureEnabled: false }} />
+              <Stack.Screen name="OnboardingAddMenu" component={OnboardingAddMenu} options={{ gestureEnabled: false }} />
+              <Stack.Screen name="ProfileSetup" component={ProfileSetup} options={{ gestureEnabled: false }} />
+              <Stack.Screen name="Camera" component={CameraScreen} options={{ gestureEnabled: false }} />
+              <Stack.Screen name="Welcome" component={Welcome} options={{ gestureEnabled: false }} />
               <Stack.Screen 
                 name="Home" 
                 component={HomeScreen} 
                 options={{
+                  gestureEnabled: false,
                   cardStyleInterpolator: ({ current, layouts }) => {
                     return {
                       cardStyle: {
@@ -100,7 +101,7 @@ export default function App() {
                   },
                 }}
               />
-              <Stack.Screen name="Menu" component={MenuScreen} />
+              <Stack.Screen name="Menu" component={MenuScreen} options={{ gestureEnabled: false }} />
             </Stack.Navigator>
           </NavigationContainer>
         </UserProfileProvider>
