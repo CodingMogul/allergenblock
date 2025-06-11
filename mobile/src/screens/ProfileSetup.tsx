@@ -46,8 +46,8 @@ const ALLERGENS = [
 const allergenIcons: Record<string, React.FC<any>> = {
   peanut: PeanutOutline,
   milk: Milk,
-  egg: Eggs,
-  eggs: Eggs,
+  egg: (props) => <Eggs {...props} color="#000" />,
+  eggs: (props) => <Eggs {...props} color="#000" />,
   fish: FishOutline,
   shellfish: Shrimp,
   'tree nut': TreePine,

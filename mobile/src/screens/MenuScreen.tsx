@@ -121,8 +121,8 @@ function getSimilarity(a: string, b: string) {
 const allergenIcons: Record<string, React.FC<any>> = {
   peanut: PeanutOutline,
   milk: Milk,
-  egg: Eggs,
-  eggs: Eggs,
+  egg: (props) => <Eggs {...props} color="#000" />,
+  eggs: (props) => <Eggs {...props} color="#000" />,
   fish: FishOutline,
   shellfish: Shrimp,
   'tree nut': TreePine,
@@ -452,6 +452,14 @@ export default function MenuScreen() {
                 <Text style={[styles.menuItemName, { fontFamily: 'ReadexPro-Regular', fontSize: nameFontSize }]}>
                   {isExpanded ? item.name : displayName}
                 </Text>
+                {/* Allergen-causing ingredients under the name */}
+                {item.allergenIngredients && Object.values(item.allergenIngredients).flat().length > 0 && (
+                  <Text
+                    style={{ color: '#888', textAlign: 'center', fontSize: 18, fontFamily: 'ReadexPro-Regular', marginTop: 4 }}
+                  >
+                    {Object.values(item.allergenIngredients).flat().join(', ')}
+                  </Text>
+                )}
               </View>
               {/* Allergen tally icon at the right (only when not expanded) */}
               {!isExpanded && (
