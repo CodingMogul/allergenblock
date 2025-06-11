@@ -56,6 +56,7 @@ import { Asset } from 'expo-asset';
 import Svg, { Path } from 'react-native-svg';
 import MenuSvg from '../../assets/icons/menu.svg';
 import { Animated as RNAnimated } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
 
 type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
 
@@ -210,6 +211,14 @@ const HomeScreen = () => {
 
   // Use React state for scrollY (for fade effect)
   const [scrollY, setScrollY] = useState(0);
+
+  const SCREEN_EDGE_IGNORE_PX = 20;
+  const SCREEN_RIGHT_EDGE_IGNORE_PX = 20;
+  const [cardWidth, setCardWidth] = useState(0);
+  const [swipeEnabled, setSwipeEnabled] = useState(true);
+
+  // Add state for delete modal position
+  const [deleteModalPosition, setDeleteModalPosition] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
   // Fetch restaurants function (moved outside useEffect for reuse)
   const fetchRestaurants = async () => {
@@ -523,9 +532,10 @@ const HomeScreen = () => {
     navigation.navigate('ProfileSetup', { canGoBack: true });
   };
 
-  const handleLongPress = (restaurant: Restaurant) => {
+  const handleLongPress = (restaurant: Restaurant, layout: { x: number; y: number; width: number; height: number } | null) => {
     setRestaurantToDelete(restaurant);
     setDeleteModalVisible(true);
+    setDeleteModalPosition(layout);
   };
 
   // Fade-in effect when navigating home after success
@@ -578,6 +588,8 @@ const HomeScreen = () => {
     return baseFontSize;
   }
 
+  const SWIPE_LOCK_PX = 72;
+
   const RestaurantCard = ({
     item,
     isNew,
@@ -586,6 +598,10 @@ const HomeScreen = () => {
     distance,
     handlePress,
     handleLongPress,
+    onDelete,
+    openSwipeId,
+    setOpenSwipeId,
+    selectedId,
   }: {
     item: RestaurantWithDistance & { apimatch?: string };
     isNew: boolean;
@@ -593,21 +609,26 @@ const HomeScreen = () => {
     locationFilter: { lat: number; lng: number } | null;
     distance: number | null;
     handlePress: (item: RestaurantWithDistance) => void;
-    handleLongPress: (item: RestaurantWithDistance) => void;
+    handleLongPress: (item: RestaurantWithDistance, layout: { x: number; y: number; width: number; height: number } | null) => void;
+    onDelete: (item: RestaurantWithDistance) => void;
+    openSwipeId: string | null;
+    setOpenSwipeId: (id: string | null) => void;
+    selectedId: string | null;
   }) => {
     const [pressed, setPressed] = React.useState(false);
-    const isCustom = item.apimatch !== 'google';
+    const swipeableRef = useRef(null);
+    const cardRef = useRef(null);
     // Animation: green->white for google, gray->white for custom
     const animatedBg = isNew
       ? cardAnim.interpolate({
           inputRange: [0, 1],
-          outputRange: isCustom ? ['#fff', '#e5e5e5'] : ['#fff', '#22c55e'],
+          outputRange: item.apimatch !== 'google' ? ['#fff', '#e5e5e5'] : ['#fff', '#22c55e'],
         })
       : pressed
         ? '#f0f0f0'
         : '#fff';
     const textColor = isNew
-      ? cardAnim.interpolate({ inputRange: [0, 1], outputRange: ['#000', isCustom ? '#000' : '#fff'] })
+      ? cardAnim.interpolate({ inputRange: [0, 1], outputRange: ['#000', item.apimatch !== 'google' ? '#000' : '#fff'] })
       : '#000';
     const lat = item.location?.coordinates?.[1] ?? 0;
     const lng = item.location?.coordinates?.[0] ?? 0;
@@ -622,24 +643,95 @@ const HomeScreen = () => {
       }
       return baseFontSize;
     }
-    return (
+    // Render right action for swipeable
+    const renderRightActions = (progress, dragX) => {
+      // Icons move in sync with card swipe
+      const iconTranslate = dragX.interpolate({
+        inputRange: [-SWIPE_LOCK_PX, 0],
+        outputRange: [0, SWIPE_LOCK_PX],
+        extrapolate: 'clamp',
+      });
+      return (
+        <RNAnimated.View style={{
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          height: '100%',
+          backgroundColor: 'transparent',
+          transform: [{ translateX: iconTranslate }],
+          width: SWIPE_LOCK_PX + 72,
+          overflow: 'visible',
+        }}>
+          <TouchableOpacity
+            onPress={async () => {
+              await onDelete(item);
+            }}
+            style={{
+              width: 56,
+              height: 56,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginRight: 8,
+              marginTop: 4,
+              marginBottom: 35,
+              backgroundColor: 'transparent',
+            }}
+            accessibilityLabel="Delete restaurant"
+            activeOpacity={0.7}
+          >
+            <Feather name="trash-2" size={28} color="#DA291C" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              handleEditRestaurant(item);
+            }}
+            style={{
+              width: 56,
+              height: 56,
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginRight: 8,
+              marginTop: 4,
+              marginBottom: 35,
+              backgroundColor: 'transparent',
+            }}
+            accessibilityLabel="Edit restaurant"
+            activeOpacity={0.7}
+          >
+            <Feather name="edit-2" size={28} color="#000" />
+          </TouchableOpacity>
+        </RNAnimated.View>
+      );
+    };
+    // Clamp card translationX to -10px
+    const renderCardContent = () => (
       <LongPressGestureHandler
+        simultaneousHandlers={swipeableRef}
         onHandlerStateChange={({ nativeEvent }: { nativeEvent: any }) => {
           if (nativeEvent.state === GestureState.ACTIVE) {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            handleLongPress(item);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            // Get card position on long press
+            if (cardRef.current) {
+              (cardRef.current as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+                handleLongPress(item, { x, y, width, height });
+              });
+            } else {
+              handleLongPress(item, null);
+            }
+            setOpenSwipeId(null);
           }
         }}
         minDurationMs={600}
       >
-        <View>
+        <View ref={cardRef}>
           <AnimatedTouchableOpacity
             activeOpacity={0.7}
-            onPressIn={() => setPressed(true)}
+            onPressIn={() => { setPressed(true); setOpenSwipeId(null); }}
             onPressOut={() => setPressed(false)}
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               handlePress(item);
+              setOpenSwipeId(null);
             }}
             style={[
               styles.card,
@@ -647,9 +739,9 @@ const HomeScreen = () => {
                 backgroundColor: pressed ? '#f0f0f0' : '#fff',
                 transform: pressed ? [{ scale: 1.04 }] : [],
                 shadowOffset: pressed ? { width: 0, height: 4 } : { width: 0, height: 4 },
-                shadowOpacity: pressed ? 0.18 : 0.10,
-                shadowRadius: 8,
-                elevation: pressed ? 10 : 6,
+                shadowOpacity: pressed ? 0.13 : 0.10,
+                shadowRadius: pressed ? 10 : 8,
+                elevation: pressed ? 8 : 6,
                 minHeight: 120,
                 paddingVertical: 28,
                 paddingHorizontal: 32,
@@ -657,6 +749,15 @@ const HomeScreen = () => {
               { flexDirection: 'row', alignItems: 'center' },
             ]}
           >
+            {/* Overlay for selected card */}
+            {selectedId === item.id && (
+              <View style={{
+                ...StyleSheet.absoluteFillObject,
+                backgroundColor: 'rgba(0,0,0,0.18)',
+                borderRadius: 24,
+                zIndex: 10,
+              }} pointerEvents="none" />
+            )}
             {/* Only show logo for Google-matched cards */}
             {item.apimatch === 'google' && item.brandLogo ? (
               <View style={{ width: 36, height: 36, marginRight: 0, borderRadius: 10, overflow: 'hidden', backgroundColor: '#fff' }}>
@@ -681,6 +782,39 @@ const HomeScreen = () => {
           </AnimatedTouchableOpacity>
         </View>
       </LongPressGestureHandler>
+    );
+    // Lock open at 10px, haptic feedback only once, only one open at a time
+    const handleSwipeableOpen = () => {
+      setOpenSwipeId(item.id);
+      if (swipeableRef.current) {
+        swipeableRef.current.openRight();
+      }
+    };
+    useEffect(() => {
+      if (openSwipeId !== item.id && swipeableRef.current) {
+        swipeableRef.current.close();
+      }
+    }, [openSwipeId]);
+    const isSelected = selectedId === item.id;
+    return (
+      <View onLayout={handleCardLayout} onTouchStart={handleTouchStart}>
+        <Swipeable
+          ref={swipeableRef}
+          renderRightActions={renderRightActions}
+          rightThreshold={SWIPE_LOCK_PX}
+          leftThreshold={40}
+          friction={0.7}
+          overshootRight={false}
+          onSwipeableRightOpen={handleSwipeableOpen}
+          containerStyle={{ marginBottom: 28, backgroundColor: 'transparent', overflow: 'visible' }}
+          childrenContainerStyle={undefined}
+          dragOffsetFromRightEdge={SWIPE_LOCK_PX}
+          useNativeAnimations={true}
+          enabled={swipeEnabled}
+        >
+          {renderCardContent()}
+        </Swipeable>
+      </View>
     );
   };
 
@@ -859,6 +993,7 @@ const HomeScreen = () => {
     setShowLoadingOverlay(false);
     setShowSuccessOverlay(false);
     setShowNoMenuModal(false);
+    setRestaurantToDelete(null);
   }
 
   // Animated fade for help/profile buttons and title
@@ -867,23 +1002,12 @@ const HomeScreen = () => {
 
   const listHeader = useMemo(() => (
     <>
-      <View style={{ position: 'absolute', top: 25, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
-        <TouchableOpacity onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          setCautionModalVisible(true);
-        }}>
-          <Text style={[styles.title, { fontSize: 28, marginBottom: 0 }]}> 
-            <Text style={[styles.epi, cautionModalVisible && { color: '#DA291C' }]}>Epi</Text>
-            <Text style={[styles.eats, cautionModalVisible && { color: '#DA291C' }]}>Eats</Text>
-          </Text>
-        </TouchableOpacity>
-      </View>
       {restaurants.length > 0 && (
         <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center', marginTop: 140, marginBottom: 40, flexDirection: 'row', alignItems: 'center', zIndex: 100 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 28, height: 56, paddingLeft: 20, paddingRight: 0, flex: 1, minWidth: 0, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
             {searchBarVisible ? (
               <TouchableOpacity onPress={() => { setSearchText(''); setSearchBarVisible(false); }} accessibilityLabel="Clear search text" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Feather name="x-circle" size={24} color="#bbb" style={{ marginRight: 12 }} />
+                <Feather name="x-circle" size={24} color="#000" style={{ marginRight: 12 }} />
               </TouchableOpacity>
             ) : (
               <FontAwesome name="search" size={28} color="#DA291C" style={{ marginRight: 12 }} />
@@ -961,11 +1085,46 @@ const HomeScreen = () => {
     setScrollY(y < -20 ? -20 : y);
   };
 
+  const handleCardLayout = (e) => {
+    setCardWidth(e.nativeEvent.layout.width);
+  };
+
+  const handleTouchStart = (e) => {
+    if (!cardWidth) return setSwipeEnabled(true);
+    const x = e.nativeEvent.locationX;
+    if (x >= cardWidth - SCREEN_RIGHT_EDGE_IGNORE_PX) {
+      setSwipeEnabled(false);
+    } else {
+      setSwipeEnabled(true);
+    }
+  };
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <RNAnimated.View style={[styles.container, showHomeFadeIn ? { opacity: homeFadeAnim } : {}]}>
         <GestureHandlerRootView style={{ flex: 1 }}>
-          {/* Overlays should be rendered last so they are above all content */}
+          {/* Fixed EpiEats Title */}
+          <RNAnimated.View style={[{
+            position: 'absolute',
+            top: 85,
+            left: 0,
+            right: 0,
+            alignItems: 'center',
+            zIndex: 50,
+            pointerEvents: 'box-none',
+          }, buttonFadeStyle]}
+          pointerEvents="box-none"
+          >
+            <TouchableOpacity onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setCautionModalVisible(true);
+            }}>
+              <Text style={[styles.title, { fontSize: 28, marginBottom: 0 }]}> 
+                <Text style={[styles.epi, cautionModalVisible && { color: '#DA291C' }]}>Epi</Text>
+                <Text style={[styles.eats, cautionModalVisible && { color: '#DA291C' }]}>Eats</Text>
+              </Text>
+            </TouchableOpacity>
+          </RNAnimated.View>
           {/* Main content */}
           <FlatList
             pointerEvents="auto"
@@ -992,7 +1151,15 @@ const HomeScreen = () => {
                   locationFilter={locationFilter}
                   distance={distance}
                   handlePress={handlePress}
-                  handleLongPress={handleLongPress}
+                  handleLongPress={(item, layout) => handleLongPress(item, layout)}
+                  onDelete={async (restaurant) => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    await deleteRestaurant(restaurant.id);
+                    await fetchRestaurants();
+                  }}
+                  openSwipeId={null}
+                  setOpenSwipeId={() => {}}
+                  selectedId={restaurantToDelete?.id}
                 />
               );
             }}
@@ -1140,80 +1307,64 @@ const HomeScreen = () => {
             transparent
             onRequestClose={closeAllModals}
           >
-            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
-              <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>
-                  Apply Changes?
-                </Text>
-                <Text style={{ fontSize: 16, marginBottom: 18, color: '#444', textAlign: 'center' }}>
-                  What would you like to do with this restaurant?
-                </Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+            {deleteModalPosition ? (
+              <View style={{
+                position: 'absolute',
+                top: deleteModalPosition.y + deleteModalPosition.height / 2 - 60, // center vertically, modal height ~96
+                left: deleteModalPosition.x + deleteModalPosition.width / 2 - 110, // center horizontally, modal width ~220
+                zIndex: 9999,
+                backgroundColor: 'transparent',
+                minWidth: 0,
+                minHeight: 0,
+              }}>
+                <View style={{
+                  backgroundColor: '#fff',
+                  borderRadius: 16,
+                  padding: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  elevation: 8,
+                  shadowColor: '#000',
+                  shadowOpacity: 0.12,
+                  shadowRadius: 6,
+                  shadowOffset: { width: 0, height: 2 },
+                  minWidth: 220,
+                  minHeight: 96,
+                  justifyContent: 'center',
+                }}>
                   <TouchableOpacity
-                    style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
                     onPress={closeAllModals}
+                    style={{ marginHorizontal: 10, padding: 8 }}
+                    accessibilityLabel="Cancel"
                   >
-                    <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
+                    <Feather name="x" size={32} color="#222" />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
-                    onPress={() => {
-                      closeAllModals();
-                      setTimeout(() => setConfirmDeleteVisible(true), 10);
+                    onPress={async () => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      await handleDeleteRestaurant();
                     }}
-                    disabled={deleting}
+                    style={{ marginHorizontal: 10, padding: 8 }}
+                    accessibilityLabel="Delete"
                   >
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
+                    <Feather name="trash-2" size={32} color="#DA291C" />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
                     onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       closeAllModals();
                       if (restaurantToDelete) handleEditRestaurant(restaurantToDelete);
                     }}
+                    style={{ marginHorizontal: 10, padding: 8 }}
+                    accessibilityLabel="Edit"
                   >
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Edit</Text>
+                    <Feather name="edit-2" size={32} color="#000" />
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
-          </Modal>
-
-          {/* Confirm Delete Modal */}
-          <Modal
-            visible={confirmDeleteVisible}
-            animationType="fade"
-            transparent
-            onRequestClose={closeAllModals}
-          >
-            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
-              <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>
-                  Permanently Delete?
-                </Text>
-                <Text style={{ fontSize: 16, marginBottom: 18, color: '#444', textAlign: 'center' }}>
-                  This will permanently delete this restaurant. Are you sure?
-                </Text>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
-                  <TouchableOpacity
-                    style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8 }}
-                    onPress={closeAllModals}
-                  >
-                    <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ backgroundColor: '#ff4d4d', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8 }}
-                    onPress={async () => {
-                      closeAllModals();
-                      setTimeout(async () => { await handleDeleteRestaurant(); }, 10);
-                    }}
-                    disabled={deleting}
-                  >
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{deleting ? 'Deleting...' : 'Delete'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
+            ) : (
+              <View style={{ flex: 1, backgroundColor: 'transparent' }} />
+            )}
           </Modal>
 
           {/* Edit Restaurant Name Modal */}
@@ -1249,7 +1400,7 @@ const HomeScreen = () => {
                     <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={{ backgroundColor: '#2563eb', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, flex: 1, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
+                    style={{ backgroundColor: '#000', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, flex: 1, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
                     onPress={handleEditNameSubmit}
                     disabled={editSaving}
                   >
@@ -1390,7 +1541,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     justifyContent: 'center',
     alignItems: 'center',
-    borderTopWidth: 1,
+    borderTopWidth: 0.2,
     borderTopColor: '#ccc',
   },
   iconRow: {

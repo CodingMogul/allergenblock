@@ -16,7 +16,7 @@ export default function TitleScreen() {
   const [showContinue, setShowContinue] = React.useState(false);
   const [videoReady, setVideoReady] = React.useState(false);
   const [videoUri, setVideoUri] = React.useState<string | null>(null);
-  const continueTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const continueTimerRef = useRef<number | null>(null);
 
   // Preload video asset for onboarding
   useEffect(() => {

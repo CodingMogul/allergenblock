@@ -567,7 +567,7 @@ export default function MenuScreen() {
                 <FontAwesome name="search" size={28} color="#DA291C" style={{ marginRight: 12 }} />
               ) : (
                 <TouchableOpacity onPress={() => setSearchText('')} accessibilityLabel="Clear search text" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                  <Feather name="x-circle" size={24} color="#bbb" style={{ marginRight: 12 }} />
+                  <Feather name="x-circle" size={24} color="#000" style={{ marginRight: 12 }} />
                 </TouchableOpacity>
               )}
               <RNTextInput

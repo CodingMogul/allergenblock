@@ -17,7 +17,7 @@ import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navig
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types/navigation';
 import { useUserProfile } from '../context/UserProfileContext';
-import { Feather } from '@expo/vector-icons';
+import { Feather, FontAwesome } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import PeanutOutline from '../../assets/icons/PeanutOutline.svg';
 import Milk from '../../assets/icons/Milk.svg';
@@ -139,7 +139,7 @@ export default function ProfileSetup() {
           }}
           accessibilityLabel="Go to Home"
         >
-          <Feather name="home" size={28} color={isDarkMode ? '#eee' : '#222'} />
+          <FontAwesome name="home" size={32} color="#DA291C" />
         </TouchableOpacity>
       )}
       <ScrollView style={[styles.container, { backgroundColor: '#fff', padding: 20 }]}
@@ -218,7 +218,7 @@ export default function ProfileSetup() {
           )}
         </TouchableOpacity>
         {showSaved && (
-          <Text style={{ color: 'green', textAlign: 'center', marginBottom: 16, fontSize: 16, fontWeight: 'bold' }}>
+          <Text style={{ color: '#000', textAlign: 'center', marginBottom: 16, fontSize: 16, fontWeight: 'bold' }}>
             Saved!
           </Text>
         )}
@@ -316,19 +316,24 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   saveButtonText: {
-    color: '#000',
+    color: '#DA291C',
     fontSize: 20,
     fontFamily: 'ReadexPro-Bold',
   },
   homeButton: {
     position: 'absolute',
-    top: 70,
-    left: 20,
+    top: 80,
+    left: 25,
     zIndex: 20,
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
   },
 }); 

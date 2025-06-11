@@ -73,6 +73,7 @@ export default function App() {
         <UserProfileProvider>
           <NavigationContainer>
             <Stack.Navigator
+              id={undefined}
               initialRouteName={initialRoute}
               screenOptions={{
                 headerShown: false,
