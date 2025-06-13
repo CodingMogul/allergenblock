@@ -151,12 +151,14 @@ function getDynamicHeaderFontSize(title: string) {
 }
 
 function normalizeAllergen(a: string) {
-  if (a === 'egg' || a === 'eggs') return 'egg';
-  if (a === 'peanut' || a === 'peanuts') return 'peanut';
-  if (a === 'tree nut' || a === 'tree nuts') return 'tree nut';
-  if (a === 'dairy' || a === 'milk') return 'dairy';
-  if (a === 'gluten' || a === 'wheat') return 'gluten';
-  return a.toLowerCase();
+  const val = a.toLowerCase().replace(/\s|_|-/g, '');
+  if (val === 'egg' || val === 'eggs') return 'egg';
+  if (val === 'peanut' || val === 'peanuts') return 'peanut';
+  if (val === 'treenut' || val === 'treenuts') return 'treenut';
+  if (val === 'dairy' || val === 'milk') return 'dairy';
+  if (val === 'gluten' || val === 'wheat') return 'gluten';
+  if (val === 'shellfish' || val === 'shellfish' || val === 'shellfish') return 'shellfish';
+  return val;
 }
 
 export default function MenuScreen() {

@@ -224,7 +224,7 @@ const HomeScreen = () => {
   const fetchRestaurants = async () => {
     setNetworkError(false);
     setLoading(true);
-    let timeout: number | null = null;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
     timeout = setTimeout(() => {
       setNetworkError(true);
       setLoading(false);
@@ -418,7 +418,9 @@ const HomeScreen = () => {
                   RNAnimated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
                   RNAnimated.delay(1000),
                   RNAnimated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
-                ]).start(() => setNewlyAddedRestaurantId(null));
+                ]).start(() => {
+                  requestAnimationFrame(() => setNewlyAddedRestaurantId(null));
+                });
               }
             });
           });
@@ -491,7 +493,7 @@ const HomeScreen = () => {
           googleResult.location.lat,
           googleResult.location.lng
         );
-        // Always use Google location if within 3000 miles for testing
+        // Use Google location if within 500 meters
         if (dist < 4828032) {
           useLocation = googleResult.location;
         }
@@ -956,7 +958,9 @@ const HomeScreen = () => {
           RNAnimated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
           RNAnimated.delay(1000),
           RNAnimated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
-        ]).start(() => setNewlyAddedRestaurantId(null));
+        ]).start(() => {
+          requestAnimationFrame(() => setNewlyAddedRestaurantId(null));
+        });
       }, 200); // 200ms buffer
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to update restaurant name.');
