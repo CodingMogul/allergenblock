@@ -494,7 +494,7 @@ const HomeScreen = () => {
           googleResult.location.lng
         );
         // Use Google location if within 500 meters
-        if (dist < 4828032) {
+        if (dist < 500) {
           useLocation = googleResult.location;
         }
       }
