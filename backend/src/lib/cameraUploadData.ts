@@ -19,7 +19,11 @@ export async function processCameraImage(
 ): Promise<{
   restaurantName?: string | null;
   location?: unknown | null;
-  menuItems: Array<{ name: string; allergens: string[]; allergenIngredients: Record<string, string[]> }> | null;
+  menuItems: Array<{
+    name: string;
+    allergens: string[];
+    allergenIngredients: Record<string, string[]>;
+  }> | null;
   source: "camera" | null;
 }> {
   console.log("🔍 Processing camera image");
@@ -72,12 +76,15 @@ export async function processCameraImage(
       menuItems: result.map((item) => {
         // Normalize allergenIngredients to ensure all values are arrays of strings
         const normalizedAllergenIngredients: Record<string, string[]> = {};
-        if (item.allergenIngredients && typeof item.allergenIngredients === 'object') {
+        if (
+          item.allergenIngredients &&
+          typeof item.allergenIngredients === "object"
+        ) {
           for (const key in item.allergenIngredients) {
             const val = item.allergenIngredients[key];
             if (Array.isArray(val)) {
               normalizedAllergenIngredients[key] = val.flat().map(String);
-            } else if (typeof val === 'string') {
+            } else if (typeof val === "string") {
               normalizedAllergenIngredients[key] = [val];
             } else {
               normalizedAllergenIngredients[key] = [];
@@ -126,6 +133,149 @@ export async function convertToBase64(filePath: string): Promise<string> {
 }
 
 /**
+ * Detects the image format from base64 data by checking the first few bytes
+ * @param base64Data - Base64 encoded image data
+ * @returns MIME type string
+ */
+function detectImageFormat(base64Data: string): string {
+  try {
+    // Convert first 20 characters of base64 to get more bytes for detection
+    const binaryString = atob(base64Data.substring(0, 20));
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // JPEG - FF D8 FF
+    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+      return "image/jpeg";
+    }
+
+    // PNG - 89 50 4E 47 0D 0A 1A 0A
+    if (
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47
+    ) {
+      return "image/png";
+    }
+
+    // GIF87a or GIF89a
+    if (
+      bytes[0] === 0x47 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x38 &&
+      (bytes[4] === 0x37 || bytes[4] === 0x39) &&
+      bytes[5] === 0x61
+    ) {
+      return "image/gif";
+    }
+
+    // WebP - RIFF....WEBP
+    if (
+      bytes[0] === 0x52 &&
+      bytes[1] === 0x49 &&
+      bytes[2] === 0x46 &&
+      bytes[3] === 0x46 &&
+      bytes[8] === 0x57 &&
+      bytes[9] === 0x45 &&
+      bytes[10] === 0x42 &&
+      bytes[11] === 0x50
+    ) {
+      return "image/webp";
+    }
+
+    // BMP - BM
+    if (bytes[0] === 0x42 && bytes[1] === 0x4d) {
+      return "image/bmp";
+    }
+
+    // TIFF - II*\0 or MM\0*
+    if (
+      (bytes[0] === 0x49 &&
+        bytes[1] === 0x49 &&
+        bytes[2] === 0x2a &&
+        bytes[3] === 0x00) ||
+      (bytes[0] === 0x4d &&
+        bytes[1] === 0x4d &&
+        bytes[2] === 0x00 &&
+        bytes[3] === 0x2a)
+    ) {
+      return "image/tiff";
+    }
+
+    // ICO - \0\0\1\0
+    if (
+      bytes[0] === 0x00 &&
+      bytes[1] === 0x00 &&
+      bytes[2] === 0x01 &&
+      bytes[3] === 0x00
+    ) {
+      return "image/x-icon";
+    }
+
+    // AVIF - ....ftypavif
+    if (
+      bytes[4] === 0x66 &&
+      bytes[5] === 0x74 &&
+      bytes[6] === 0x79 &&
+      bytes[7] === 0x70 &&
+      bytes[8] === 0x61 &&
+      bytes[9] === 0x76 &&
+      bytes[10] === 0x69 &&
+      bytes[11] === 0x66
+    ) {
+      return "image/avif";
+    }
+
+    // HEIC/HEIF - ....ftypheic or ....ftypheix or ....ftyphevc or ....ftypmif1
+    if (
+      bytes[4] === 0x66 &&
+      bytes[5] === 0x74 &&
+      bytes[6] === 0x79 &&
+      bytes[7] === 0x70
+    ) {
+      const subtype = String.fromCharCode(
+        bytes[8],
+        bytes[9],
+        bytes[10],
+        bytes[11]
+      );
+      if (
+        subtype === "heic" ||
+        subtype === "heix" ||
+        subtype === "hevc" ||
+        subtype === "mif1"
+      ) {
+        return "image/heic";
+      }
+    }
+
+    // SVG - look for <svg or <?xml
+    const textStart = binaryString.substring(0, 10).toLowerCase();
+    if (textStart.includes("<svg") || textStart.includes("<?xml")) {
+      return "image/svg+xml";
+    }
+
+    // If we can't detect the format, try to infer from common patterns
+    // Check if it looks like a valid image by looking for common patterns
+
+    // Most mobile devices use JPEG or PNG, so let's make an educated guess
+    // based on the first few bytes and default to JPEG for maximum compatibility
+    console.warn(
+      "Could not detect image format from magic bytes, defaulting to JPEG"
+    );
+    return "image/jpeg";
+  } catch (error) {
+    console.error("Error detecting image format:", error);
+    // If base64 decoding fails or any other error, default to JPEG
+    return "image/jpeg";
+  }
+}
+
+/**
  * Process image with Gemini AI to extract allergen information
  * @param base64Image - Base64 encoded image data
  * @returns Processed menu items with allergens or error object
@@ -133,7 +283,11 @@ export async function convertToBase64(filePath: string): Promise<string> {
 export async function processImageWithGemini(
   base64Image: string | null
 ): Promise<
-  | Array<{ name: string; allergens: string[]; allergenIngredients: Record<string, string[]> }>
+  | Array<{
+      name: string;
+      allergens: string[];
+      allergenIngredients: Record<string, string[]>;
+    }>
   | { error: true; message: string }
 > {
   try {
@@ -169,21 +323,24 @@ export async function processImageWithGemini(
 
     // Extract Gemini response and parse the JSON data safely
     const rawText = await response.response.text();
-    console.log('--- GEMINI RAW RESPONSE ---');
+    console.log("--- GEMINI RAW RESPONSE ---");
     console.log(rawText);
     const cleanText = rawText.replace(/```json|```/g, "").trim();
-    console.log('--- GEMINI CLEANED TEXT ---');
+    console.log("--- GEMINI CLEANED TEXT ---");
     console.log(cleanText);
 
     try {
       const allergenData = JSON.parse(cleanText);
-      console.log('--- GEMINI PARSED DATA ---');
+      console.log("--- GEMINI PARSED DATA ---");
       // Use JSON.stringify to show full nested arrays/objects
       console.log(JSON.stringify(allergenData, null, 2));
       if (Array.isArray(allergenData)) {
         allergenData.forEach((item, idx) => {
           if (!item.ingredients && !item.ingredientList) {
-            console.warn(`Menu item at index ${idx} is missing ingredients/ingredientList:`, item);
+            console.warn(
+              `Menu item at index ${idx} is missing ingredients/ingredientList:`,
+              item
+            );
           }
         });
       }

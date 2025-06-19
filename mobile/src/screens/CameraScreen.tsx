@@ -1,20 +1,25 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Image } from 'react-native';
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import * as ImagePicker from 'expo-image-picker';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../types/navigation'; // adjust path if needed
-import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import Animated from 'react-native-reanimated';
+import React, { useRef, useState, useEffect } from "react";
+import { View, TouchableOpacity, Text, StyleSheet, Image } from "react-native";
+import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../types/navigation"; // adjust path if needed
+import { MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import Animated from "react-native-reanimated";
 
 const CameraScreen = () => {
   const cameraRef = useRef<any>(null);
-  const [facing, setFacing] = useState<CameraType>('back');
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const [facing, setFacing] = useState<CameraType>("back");
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute();
   const [permission, requestPermission] = useCameraPermissions();
-  const [scanMode, setScanMode] = useState<'scan' | 'gallery'>('scan');
+  const [scanMode, setScanMode] = useState<"scan" | "gallery">("scan");
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [reviewUri, setReviewUri] = useState<string | null>(null);
   // Delay flag for CameraView mounting
@@ -45,14 +50,14 @@ const CameraScreen = () => {
 
   const takePicture = async () => {
     if (!cameraRef.current) {
-      setCameraError('Camera not ready.');
+      setCameraError("Camera not ready.");
       return;
     }
     try {
       const photo = await cameraRef.current.takePictureAsync();
       setReviewUri(photo.uri);
     } catch (err: any) {
-      setCameraError('Failed to take picture: ' + (err?.message || err));
+      setCameraError("Failed to take picture: " + (err?.message || err));
     }
   };
 
@@ -70,7 +75,7 @@ const CameraScreen = () => {
         setReviewUri(result.assets[0].uri);
       }
     } catch (err: any) {
-      setCameraError('Failed to pick image: ' + (err?.message || err));
+      setCameraError("Failed to pick image: " + (err?.message || err));
     }
   };
 
@@ -80,8 +85,13 @@ const CameraScreen = () => {
   if (!permission.granted) {
     return (
       <View style={styles.overlay}>
-        <Text style={{ color: '#222', marginBottom: 12 }}>We need your permission to show the camera</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.actionButton}>
+        <Text style={{ color: "#222", marginBottom: 12 }}>
+          We need your permission to show the camera
+        </Text>
+        <TouchableOpacity
+          onPress={requestPermission}
+          style={styles.actionButton}
+        >
           <Text>Grant Permission</Text>
         </TouchableOpacity>
       </View>
@@ -90,8 +100,11 @@ const CameraScreen = () => {
   if (cameraError) {
     return (
       <View style={styles.overlay}>
-        <Text style={{ color: 'red', marginBottom: 12 }}>{cameraError}</Text>
-        <TouchableOpacity onPress={() => setCameraError(null)} style={styles.actionButton}>
+        <Text style={{ color: "red", marginBottom: 12 }}>{cameraError}</Text>
+        <TouchableOpacity
+          onPress={() => setCameraError(null)}
+          style={styles.actionButton}
+        >
           <Text>Try Again</Text>
         </TouchableOpacity>
       </View>
@@ -100,10 +113,14 @@ const CameraScreen = () => {
 
   if (reviewUri) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#000' }}>
-        <Image source={{ uri: reviewUri }} style={StyleSheet.absoluteFill} resizeMode="contain" />
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        <Image
+          source={{ uri: reviewUri }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="contain"
+        />
         {/* Square guide overlay */}
-        {scanMode !== 'gallery' && (
+        {scanMode !== "gallery" && (
           <View style={styles.centerBoxContainer} pointerEvents="none">
             <View style={styles.centerBox}>
               <View style={[styles.corner, styles.cornerTL]} />
@@ -114,18 +131,37 @@ const CameraScreen = () => {
           </View>
         )}
         {/* Action buttons */}
-        <View style={{ position: 'absolute', bottom: 48, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-evenly', alignItems: 'center', zIndex: 10 }}>
-          <TouchableOpacity style={styles.actionButton} onPress={() => {
-            setReviewUri(null);
-            setScanMode('scan');
-            setCameraError(null);
-          }}>
-            <Text style={{ color: '#fff', fontSize: 18 }}>{scanMode === 'scan' ? 'Retry' : 'Cancel'}</Text>
+        <View
+          style={{
+            position: "absolute",
+            bottom: 48,
+            left: 0,
+            right: 0,
+            flexDirection: "row",
+            justifyContent: "space-evenly",
+            alignItems: "center",
+            zIndex: 10,
+          }}
+        >
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              setReviewUri(null);
+              setScanMode("scan");
+              setCameraError(null);
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 18 }}>
+              {scanMode === "scan" ? "Retry" : "Cancel"}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => {
-            navigation.navigate('Home', { photoUri: reviewUri });
-          }}>
-            <Text style={{ color: '#fff', fontSize: 18 }}>Use Photo</Text>
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              navigation.navigate("Home", { photoUri: reviewUri });
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 18 }}>Use Photo</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -145,7 +181,15 @@ const CameraScreen = () => {
       )}
       {/* X button in top left */}
       <TouchableOpacity
-        style={{ position: 'absolute', top: 80, left: 24, zIndex: 10, backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 20, padding: 6 }}
+        style={{
+          position: "absolute",
+          top: 80,
+          left: 24,
+          zIndex: 10,
+          backgroundColor: "rgba(255,255,255,0.5)",
+          borderRadius: 20,
+          padding: 6,
+        }}
         onPress={() => {
           navigation.goBack();
         }}
@@ -155,7 +199,7 @@ const CameraScreen = () => {
         <Feather name="x" size={28} color="#222" />
       </TouchableOpacity>
       {/* White transparent box with corners */}
-      {scanMode !== 'gallery' && (
+      {scanMode !== "gallery" && (
         <View style={styles.centerBoxContainer} pointerEvents="none">
           <View style={styles.centerBox}>
             {/* Corners */}
@@ -171,10 +215,12 @@ const CameraScreen = () => {
         <TouchableOpacity
           style={[
             styles.smallModeButton,
-            scanMode === 'scan' ? styles.smallModeButtonActive : styles.smallModeButtonInactive,
+            scanMode === "scan"
+              ? styles.smallModeButtonActive
+              : styles.smallModeButtonInactive,
           ]}
           onPress={() => {
-            setScanMode('scan');
+            setScanMode("scan");
           }}
         >
           <MaterialCommunityIcons name="food" size={20} color="#222" />
@@ -183,7 +229,9 @@ const CameraScreen = () => {
         <TouchableOpacity
           style={[
             styles.smallModeButton,
-            scanMode === 'gallery' ? styles.smallModeButtonActive : styles.smallModeButtonInactive,
+            scanMode === "gallery"
+              ? styles.smallModeButtonActive
+              : styles.smallModeButtonInactive,
           ]}
           onPress={() => {
             pickImageFromGallery();
@@ -199,7 +247,7 @@ const CameraScreen = () => {
         <TouchableOpacity
           style={styles.shutterButton}
           onPress={() => {
-            if (scanMode === 'scan') {
+            if (scanMode === "scan") {
               takePicture();
             } else {
               pickImageFromGallery();
@@ -218,25 +266,25 @@ const styles = StyleSheet.create({
   overlay: { flex: 1 },
   centerBoxContainer: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 2,
   },
   centerBox: {
     width: 260,
     height: 340,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderRadius: 18,
     borderWidth: 0,
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
   },
   corner: {
-    position: 'absolute',
+    position: "absolute",
     width: 28,
     height: 28,
-    borderColor: 'rgba(255,255,255,0.5)',
+    borderColor: "rgba(255,255,255,0.5)",
   },
   cornerTL: {
     top: -30,
@@ -267,23 +315,23 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 8,
   },
   bottomBarRow: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 48,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-evenly",
+    alignItems: "center",
     zIndex: 10,
   },
   modeButtonsRow: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 140,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 11,
     gap: 18,
   },
@@ -291,36 +339,36 @@ const styles = StyleSheet.create({
     width: 88,
     height: 56,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'column',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "column",
     marginHorizontal: 8,
     paddingVertical: 0,
     paddingHorizontal: 0,
   },
   smallModeButtonActive: {
-    backgroundColor: 'rgba(255,255,255,1)',
+    backgroundColor: "rgba(255,255,255,1)",
   },
   smallModeButtonInactive: {
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: "rgba(255,255,255,0.5)",
   },
   smallModeButtonText: {
     fontSize: 12,
-    fontWeight: 'bold',
-    color: '#222',
+    fontWeight: "bold",
+    color: "#222",
     marginTop: 2,
   },
   shutterButton: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
     marginHorizontal: 12,
     borderWidth: 3,
-    borderColor: '#fff',
-    shadowColor: '#000',
+    borderColor: "#fff",
+    shadowColor: "#000",
     shadowOpacity: 0.12,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -329,29 +377,29 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderWidth: 2,
-    borderColor: '#eee',
+    borderColor: "#eee",
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.85)",
     borderRadius: 32,
     paddingVertical: 14,
     paddingHorizontal: 28,
     marginHorizontal: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
   },
   actionButtonText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginLeft: 10,
-    color: '#222',
+    color: "#222",
   },
 });
 
-export default CameraScreen; 
+export default CameraScreen;

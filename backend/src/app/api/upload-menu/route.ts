@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { processCameraImage } from '../../../lib/cameraUploadData';
+import { NextRequest, NextResponse } from "next/server";
+import { processCameraImage } from "../../../lib/cameraUploadData";
 
 export async function POST(req: NextRequest) {
   try {
@@ -7,8 +7,8 @@ export async function POST(req: NextRequest) {
 
     // Helper to check if all top-level fields are null
     function isAllNull(obj: unknown) {
-      if (!obj || typeof obj !== 'object') return false;
-      return Object.values(obj).every(v => v === null);
+      if (!obj || typeof obj !== "object") return false;
+      return Object.values(obj).every((v) => v === null);
     }
 
     // Pass the base64 string to Gemini
@@ -16,12 +16,19 @@ export async function POST(req: NextRequest) {
 
     // If Gemini timed out or failed, and all fields are null, return special response
     if (isAllNull(result)) {
-      return NextResponse.json({ success: false, reason: 'no_menu' });
+      return NextResponse.json({ success: false, reason: "no_menu" });
     }
 
     // No MongoDB storage, just return Gemini result
-    return NextResponse.json({ success: true, gemini: !!result.menuItems, data: result });
+    return NextResponse.json({
+      success: true,
+      gemini: !!result.menuItems,
+      data: result,
+    });
   } catch (error: unknown) {
-    return NextResponse.json({ success: false, error: (error as Error).message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: (error as Error).message },
+      { status: 500 }
+    );
   }
-} 
+}

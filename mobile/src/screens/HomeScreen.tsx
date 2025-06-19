@@ -1,5 +1,11 @@
 // ✅ HomeScreen.tsx
-import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import React, {
+  useEffect,
+  useState,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import {
   View,
   Text,
@@ -23,48 +29,66 @@ import {
   useWindowDimensions,
   NativeSyntheticEvent,
   NativeScrollEvent,
-} from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { BASE_URL } from '../../config';
+} from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import {
+  useNavigation,
+  useRoute,
+  useFocusEffect,
+} from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { BASE_URL } from "../../config";
 import {
   TapGestureHandler,
   TapGestureHandlerEventPayload,
   GestureEvent,
   LongPressGestureHandler,
   State as GestureState,
-} from 'react-native-gesture-handler';
-import * as ImagePicker from 'expo-image-picker';
-import { MaterialIcons, Feather, FontAwesome5, MaterialCommunityIcons, FontAwesome } from '@expo/vector-icons';
-import * as FileSystem from 'expo-file-system';
-import * as Location from 'expo-location';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BlurView } from 'expo-blur';
-import { Easing } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import { deleteRestaurant, editRestaurant, getRestaurants, addRestaurant } from '../storage/restaurantStorage';
-import { fetchGooglePlace } from '../api/googleApi';
-import { fetchLogoDevUrl } from '../api/logoDevApi';
-import uuid from 'react-native-uuid';
-import type { MenuItem, Restaurant } from '../restaurantData';
-import { Accelerometer } from 'expo-sensors';
-import { LinearGradient } from 'expo-linear-gradient';
-import type { TextInput as RNTextInput } from 'react-native';
-import { RootStackParamList } from '../screens/types/navigation';
-import { Asset } from 'expo-asset';
-import Svg, { Path } from 'react-native-svg';
-import MenuSvg from '../../assets/icons/menu.svg';
-import { Animated as RNAnimated } from 'react-native';
-import Swipeable from 'react-native-gesture-handler/Swipeable';
+} from "react-native-gesture-handler";
+import * as ImagePicker from "expo-image-picker";
+import {
+  MaterialIcons,
+  Feather,
+  FontAwesome5,
+  MaterialCommunityIcons,
+  FontAwesome,
+} from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
+import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BlurView } from "expo-blur";
+import { Easing } from "react-native";
+import * as Haptics from "expo-haptics";
+import {
+  deleteRestaurant,
+  editRestaurant,
+  getRestaurants,
+  addRestaurant,
+} from "../storage/restaurantStorage";
+import { fetchGooglePlace } from "../api/googleApi";
+import { fetchLogoDevUrl } from "../api/logoDevApi";
+import uuid from "react-native-uuid";
+import type { MenuItem, Restaurant } from "../restaurantData";
+import { Accelerometer } from "expo-sensors";
+import { LinearGradient } from "expo-linear-gradient";
+import type { TextInput as RNTextInput } from "react-native";
+import { RootStackParamList } from "../screens/types/navigation";
+import { Asset } from "expo-asset";
+import Svg, { Path } from "react-native-svg";
+import MenuSvg from "../../assets/icons/menu.svg";
+import { Animated as RNAnimated } from "react-native";
+import Swipeable from "react-native-gesture-handler/Swipeable";
 
-type RestaurantWithDistance = Restaurant & { distance?: number, similarity?: number };
+type RestaurantWithDistance = Restaurant & {
+  distance?: number;
+  similarity?: number;
+};
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 function getSimilarity(a: string, b: string) {
-  a = a.toLowerCase().replace(/\s+/g, '');
-  b = b.toLowerCase().replace(/\s+/g, '');
+  a = a.toLowerCase().replace(/\s+/g, "");
+  b = b.toLowerCase().replace(/\s+/g, "");
   if (a.includes(b) || b.includes(a)) return 100;
   // Split search into words and check if all are present
   const bWords = b.split(/[\s,]+/).filter(Boolean);
@@ -76,32 +100,46 @@ function getSimilarity(a: string, b: string) {
 }
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const toRad = (x: number) => x * Math.PI / 180;
+  const toRad = (x: number) => (x * Math.PI) / 180;
   const R = 6371; // km
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
 // Helper to compute distance between two lat/lng points in meters
-function getDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const toRad = (x: number) => x * Math.PI / 180;
+function getDistanceMeters(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const toRad = (x: number) => (x * Math.PI) / 180;
   const R = 6371000; // meters
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLng/2) * Math.sin(dLng/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
 // Update getGoogleMatchedName to return both name and location if matched
-async function getGoogleMatchedNameAndLocation(inputName: string, location: { lat: number; lng: number }) {
+async function getGoogleMatchedNameAndLocation(
+  inputName: string,
+  location: { lat: number; lng: number }
+) {
   try {
     const params = new URLSearchParams({
       restaurantName: inputName,
@@ -111,7 +149,12 @@ async function getGoogleMatchedNameAndLocation(inputName: string, location: { la
     const res = await fetch(`${BASE_URL}/api/maps?${params.toString()}`);
     if (res.ok) {
       const data = await res.json();
-      if (data.apimatch === 'google' && data.googlePlace && data.googlePlace.name && data.googlePlace.location) {
+      if (
+        data.apimatch === "google" &&
+        data.googlePlace &&
+        data.googlePlace.name &&
+        data.googlePlace.location
+      ) {
         return {
           name: data.googlePlace.name,
           location: data.googlePlace.location,
@@ -122,19 +165,23 @@ async function getGoogleMatchedNameAndLocation(inputName: string, location: { la
   return { name: inputName, location };
 }
 
-function createRestaurantFromGemini(data: any, restaurantName: string, location: { lat: number, lng: number }): Restaurant {
+function createRestaurantFromGemini(
+  data: any,
+  restaurantName: string,
+  location: { lat: number; lng: number }
+): Restaurant {
   return {
     id: uuid.v4(),
     restaurantName: data.restaurantName || restaurantName,
     location: {
-      type: 'Point' as const,
+      type: "Point" as const,
       coordinates: [
         (data.location && data.location.lng) || location.lng,
         (data.location && data.location.lat) || location.lat,
       ],
     },
     menuItems: data.menuItems || [],
-    source: data.source || 'camera',
+    source: data.source || "camera",
     apimatch: data.apimatch,
     googlePlace: data.googlePlace,
     brandLogo: data.brandLogo,
@@ -150,7 +197,7 @@ function getDisplayName(restaurant: any) {
     restaurant.verifiedName ||
     restaurant.restaurantName ||
     restaurant.name ||
-    'Unnamed Restaurant'
+    "Unnamed Restaurant"
   );
 }
 
@@ -159,23 +206,37 @@ const HomeScreen = () => {
   const route = useRoute();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchText, setSearchText] = useState('');
+  const [searchText, setSearchText] = useState("");
   const [image, setImage] = useState<string | null>(null);
-  const [locationFilter, setLocationFilter] = useState<{ lat: number; lng: number } | null>(null);
-  const [restaurantName, setRestaurantName] = useState('');
-  const [restaurantNameModalVisible, setRestaurantNameModalVisible] = useState(false);
-  const [pendingImageBase64, setPendingImageBase64] = useState<string | null>(null);
+  const [locationFilter, setLocationFilter] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [restaurantName, setRestaurantName] = useState("");
+  const [restaurantNameModalVisible, setRestaurantNameModalVisible] =
+    useState(false);
+  const [pendingImageBase64, setPendingImageBase64] = useState<string | null>(
+    null
+  );
   const [pendingImageUri, setPendingImageUri] = useState<string | null>(null);
-  const [pendingLocation, setPendingLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [restaurantNameInput, setRestaurantNameInput] = useState('');
+  const [pendingLocation, setPendingLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [restaurantNameInput, setRestaurantNameInput] = useState("");
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [restaurantToDelete, setRestaurantToDelete] = useState<Restaurant | null>(null);
-  const [userFirstName, setUserFirstName] = useState('');
-  const [userLastInitial, setUserLastInitial] = useState('');
+  const [restaurantToDelete, setRestaurantToDelete] =
+    useState<Restaurant | null>(null);
+  const [userFirstName, setUserFirstName] = useState("");
+  const [userLastInitial, setUserLastInitial] = useState("");
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
-  const [newlyAddedRestaurantId, setNewlyAddedRestaurantId] = useState<string | null>(null);
+  const [newlyAddedRestaurantId, setNewlyAddedRestaurantId] = useState<
+    string | null
+  >(null);
   const [deleting, setDeleting] = useState(false);
-  const [googleMatchedName, setGoogleMatchedName] = useState<string | null>(null);
+  const [googleMatchedName, setGoogleMatchedName] = useState<string | null>(
+    null
+  );
   const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
   const [showNoMenuModal, setShowNoMenuModal] = useState(false);
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -184,30 +245,38 @@ const HomeScreen = () => {
   const magnifierFadeAnim = React.useRef(new RNAnimated.Value(1)).current;
   const cautionFadeAnim = React.useRef(new RNAnimated.Value(0)).current;
   // Success overlay animation values
-  const successMagnifierFadeAnim = React.useRef(new RNAnimated.Value(1)).current;
+  const successMagnifierFadeAnim = React.useRef(
+    new RNAnimated.Value(1)
+  ).current;
   const successCheckFadeAnim = React.useRef(new RNAnimated.Value(0)).current;
   const [showHomeFadeIn, setShowHomeFadeIn] = useState(false);
   const homeFadeAnim = useRef(new RNAnimated.Value(0)).current;
   const [successOverlayAnim] = useState(new RNAnimated.Value(1));
   // Add state for edit modal
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editNameInput, setEditNameInput] = useState('');
-  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
+  const [editNameInput, setEditNameInput] = useState("");
+  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(
+    null
+  );
   const [editSaving, setEditSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [networkError, setNetworkError] = useState(false);
   // Add state for delete confirmation modal
   const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
-  const [lastDeletedRestaurant, setLastDeletedRestaurant] = useState<Restaurant | null>(null);
+  const [lastDeletedRestaurant, setLastDeletedRestaurant] =
+    useState<Restaurant | null>(null);
   const [cautionModalVisible, setCautionModalVisible] = useState(false);
   const [searchBarVisible, setSearchBarVisible] = useState(false);
   const [debouncedSearchText, setDebouncedSearchText] = useState(searchText);
   // Ensure searchInputRef is defined for the search bar
   const searchInputRef = useRef<RNTextInput | null>(null);
-  const [preloadedVideoUri, setPreloadedVideoUri] = useState<string | null>(null);
+  const [preloadedVideoUri, setPreloadedVideoUri] = useState<string | null>(
+    null
+  );
   const { width: windowWidth } = useWindowDimensions();
 
-  const AnimatedTouchableOpacity = RNAnimated.createAnimatedComponent(TouchableOpacity);
+  const AnimatedTouchableOpacity =
+    RNAnimated.createAnimatedComponent(TouchableOpacity);
 
   // Use React state for scrollY (for fade effect)
   const [scrollY, setScrollY] = useState(0);
@@ -218,7 +287,12 @@ const HomeScreen = () => {
   const [swipeEnabled, setSwipeEnabled] = useState(true);
 
   // Add state for delete modal position
-  const [deleteModalPosition, setDeleteModalPosition] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [deleteModalPosition, setDeleteModalPosition] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   // Fetch restaurants function (moved outside useEffect for reuse)
   const fetchRestaurants = async () => {
@@ -263,19 +337,26 @@ const HomeScreen = () => {
   useEffect(() => {
     const loadUserName = async () => {
       try {
-        const profile = await AsyncStorage.getItem('userProfile');
+        const profile = await AsyncStorage.getItem("userProfile");
         if (profile) {
           const { firstName, lastName } = JSON.parse(profile);
-          setUserFirstName(firstName || '');
-          setUserLastInitial(lastName && lastName.length > 0 ? lastName[0].toUpperCase() : '');
+          setUserFirstName(firstName || "");
+          setUserLastInitial(
+            lastName && lastName.length > 0 ? lastName[0].toUpperCase() : ""
+          );
         }
       } catch {}
     };
     loadUserName();
   }, []);
 
-  const handlePress = (restaurant: RestaurantWithDistance & { apimatch?: string; brandLogo?: string }) => {
-    navigation.navigate('Menu', {
+  const handlePress = (
+    restaurant: RestaurantWithDistance & {
+      apimatch?: string;
+      brandLogo?: string;
+    }
+  ) => {
+    navigation.navigate("Menu", {
       restaurant: {
         id: restaurant.id,
         name: restaurant.restaurantName,
@@ -286,13 +367,15 @@ const HomeScreen = () => {
   };
 
   const filteredRestaurants: RestaurantWithDistance[] = useMemo(() => {
-    let list: RestaurantWithDistance[] = restaurants.filter(r => !(r as any).hidden);
+    let list: RestaurantWithDistance[] = restaurants.filter(
+      (r) => !(r as any).hidden
+    );
     let bestHiddenMatch: RestaurantWithDistance | null = null;
     if (debouncedSearchText.trim()) {
       // Find the best matching hidden restaurant
-      const hiddenRestaurants = restaurants.filter(r => (r as any).hidden);
+      const hiddenRestaurants = restaurants.filter((r) => (r as any).hidden);
       let bestScore = -1;
-      hiddenRestaurants.forEach(r => {
+      hiddenRestaurants.forEach((r) => {
         const similarity = getSimilarity(r.restaurantName, debouncedSearchText);
         if (similarity > bestScore) {
           bestScore = similarity;
@@ -301,23 +384,28 @@ const HomeScreen = () => {
       });
       // If the best hidden match is reasonably similar, show it at the top
       if (bestHiddenMatch && bestScore >= 70) {
-        list = [bestHiddenMatch, ...list.filter(r => r.id !== bestHiddenMatch!.id)];
+        list = [
+          bestHiddenMatch,
+          ...list.filter((r) => r.id !== bestHiddenMatch!.id),
+        ];
       }
       // Reorder by similarity, do not filter out
       const search = debouncedSearchText.trim().toLowerCase();
       list = [...list]
-        .map(r => ({
+        .map((r) => ({
           ...r,
-          similarity: getSimilarity(r.restaurantName, search)
+          similarity: getSimilarity(r.restaurantName, search),
         }))
         .sort((a, b) => b.similarity - a.similarity);
       // If user location is available, filter Google-matched restaurants to within 10 miles
       if (locationFilter) {
-        list = list.filter(r => {
-          if (r.apimatch === 'google' && r.location && r.location.coordinates) {
+        list = list.filter((r) => {
+          if (r.apimatch === "google" && r.location && r.location.coordinates) {
             const lat = r.location.coordinates[1] ?? 0;
             const lng = r.location.coordinates[0] ?? 0;
-            const dist = getDistance(locationFilter.lat, locationFilter.lng, lat, lng) * 0.621371; // km to miles
+            const dist =
+              getDistance(locationFilter.lat, locationFilter.lng, lat, lng) *
+              0.621371; // km to miles
             return dist <= 10;
           }
           return true;
@@ -326,13 +414,18 @@ const HomeScreen = () => {
     } else if (locationFilter) {
       // If location filter is active, sort by distance only (do not filter by distance)
       list = list
-        .map(r => {
+        .map((r) => {
           const lat = r.location?.coordinates?.[1] ?? 0;
           const lng = r.location?.coordinates?.[0] ?? 0;
           if (locationFilter) {
             return {
               ...r,
-              distance: getDistance(locationFilter.lat, locationFilter.lng, lat, lng)
+              distance: getDistance(
+                locationFilter.lat,
+                locationFilter.lng,
+                lat,
+                lng
+              ),
             };
           }
           return { ...r, distance: Infinity };
@@ -342,12 +435,16 @@ const HomeScreen = () => {
     return list;
   }, [restaurants, debouncedSearchText, locationFilter]);
 
-  const uploadMenuImage = async (base64: string, restaurantName: string, location: { lat: number; lng: number }) => {
+  const uploadMenuImage = async (
+    base64: string,
+    restaurantName: string,
+    location: { lat: number; lng: number }
+  ) => {
     try {
       // Call backend for Gemini processing
       const response = await fetch(`${BASE_URL}/api/upload-menu`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image: base64,
           restaurantName,
@@ -370,17 +467,21 @@ const HomeScreen = () => {
         let verifiedName = restaurantName;
         let verifiedLocation = location;
         let googlePlace = undefined;
-        let apimatch = 'none';
-        if (googleResult && googleResult.apimatch === 'google' && googleResult.googlePlace) {
+        let apimatch = "none";
+        if (
+          googleResult &&
+          googleResult.apimatch === "google" &&
+          googleResult.googlePlace
+        ) {
           verifiedName = googleResult.googlePlace.name;
           verifiedLocation = googleResult.googlePlace.location;
           googlePlace = googleResult.googlePlace;
-          apimatch = 'google';
+          apimatch = "google";
         }
         // 2. logo.dev for logo (only if apimatch is 'google')
-        let brandLogo = '';
-        if (apimatch === 'google') {
-          brandLogo = await fetchLogoDevUrl(verifiedName, verifiedName) || '';
+        let brandLogo = "";
+        if (apimatch === "google") {
+          brandLogo = (await fetchLogoDevUrl(verifiedName, verifiedName)) || "";
         }
         // 3. Save to AsyncStorage with all info
         const newRestaurant = {
@@ -390,34 +491,45 @@ const HomeScreen = () => {
           displayName: verifiedName,
           name: verifiedName,
           location: {
-            type: 'Point' as const,
-            coordinates: [verifiedLocation.lng ?? 0, verifiedLocation.lat ?? 0] as [number, number],
+            type: "Point" as const,
+            coordinates: [
+              verifiedLocation.lng ?? 0,
+              verifiedLocation.lat ?? 0,
+            ] as [number, number],
           },
           verifiedLocation,
           menuItems: menuItems,
-          source: data.source || 'camera',
+          source: data.source || "camera",
           apimatch,
           googlePlace,
-          brandLogo: brandLogo || '',
+          brandLogo: brandLogo || "",
           updatedAt: Date.now(),
           createdAt: Date.now(),
           hidden: false,
         };
         await addRestaurant(newRestaurant);
-        console.log('Saved restaurant:', newRestaurant);
+        console.log("Saved restaurant:", newRestaurant);
         setShowLoadingOverlay(false);
         setShowSuccessOverlay(true);
         setTimeout(() => {
           setShowSuccessOverlay(false);
           InteractionManager.runAfterInteractions(() => {
             fetchRestaurants().then((list) => {
-              const newCard = list.find(r => r.id === newRestaurant.id);
+              const newCard = list.find((r) => r.id === newRestaurant.id);
               if (newCard) {
                 setNewlyAddedRestaurantId(newCard.id);
                 RNAnimated.sequence([
-                  RNAnimated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+                  RNAnimated.timing(cardAnim, {
+                    toValue: 1,
+                    duration: 400,
+                    useNativeDriver: false,
+                  }),
                   RNAnimated.delay(1000),
-                  RNAnimated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
+                  RNAnimated.timing(cardAnim, {
+                    toValue: 0,
+                    duration: 400,
+                    useNativeDriver: false,
+                  }),
                 ]).start(() => {
                   requestAnimationFrame(() => setNewlyAddedRestaurantId(null));
                 });
@@ -426,23 +538,25 @@ const HomeScreen = () => {
           });
         }, 900);
       } else {
-        console.log('Processing or upload failed:', data);
+        console.log("Processing or upload failed:", data);
         setShowLoadingOverlay(false);
         setShowSuccessOverlay(false);
         setShowNoMenuModal(true);
       }
     } catch (err: any) {
-      console.log('Error uploading image:', err);
-      Alert.alert('Error', 'Error uploading image: ' + err.message);
+      console.log("Error uploading image:", err);
+      Alert.alert("Error", "Error uploading image: " + err.message);
     }
   };
 
   const handleImageSelected = async (uri: string) => {
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: "base64",
+    });
     let location = locationFilter;
     if (!location) {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
+      if (status === "granted") {
         const loc = await Location.getCurrentPositionAsync({});
         location = { lat: loc.coords.latitude, lng: loc.coords.longitude };
         setLocationFilter(location);
@@ -453,13 +567,13 @@ const HomeScreen = () => {
     setPendingImageBase64(base64);
     setPendingImageUri(uri);
     setPendingLocation(location);
-    setRestaurantNameInput('');
+    setRestaurantNameInput("");
     setRestaurantNameModalVisible(true);
   };
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
+      mediaTypes: ["images", "videos"],
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1,
@@ -471,19 +585,22 @@ const HomeScreen = () => {
   };
 
   const takePhoto = () => {
-    navigation.navigate('Camera');
+    navigation.navigate("Camera");
   };
 
   const handleRestaurantNameSubmit = async () => {
     if (!restaurantNameInput.trim()) {
-      Alert.alert('Please enter a restaurant name.');
+      Alert.alert("Please enter a restaurant name.");
       return;
     }
     setRestaurantNameModalVisible(false);
     setShowLoadingOverlay(true);
     if (pendingImageBase64 && pendingLocation) {
       // Get Google-matched name and location before upload
-      const googleResult = await getGoogleMatchedNameAndLocation(restaurantNameInput.trim(), pendingLocation);
+      const googleResult = await getGoogleMatchedNameAndLocation(
+        restaurantNameInput.trim(),
+        pendingLocation
+      );
       let useName = googleResult.name;
       let useLocation = pendingLocation;
       if (googleResult.location) {
@@ -503,7 +620,7 @@ const HomeScreen = () => {
       setPendingImageBase64(null);
       setPendingImageUri(null);
       setPendingLocation(null);
-      setRestaurantNameInput('');
+      setRestaurantNameInput("");
       setShowLoadingOverlay(false);
       setShowSuccessOverlay(true);
       setTimeout(() => {
@@ -515,14 +632,20 @@ const HomeScreen = () => {
   const handleLocationPress = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required to filter nearby restaurants.');
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission denied",
+          "Location permission is required to filter nearby restaurants."
+        );
         return;
       }
       const loc = await Location.getCurrentPositionAsync({});
-      setLocationFilter({ lat: loc.coords.latitude, lng: loc.coords.longitude });
+      setLocationFilter({
+        lat: loc.coords.latitude,
+        lng: loc.coords.longitude,
+      });
     } catch (err: any) {
-      Alert.alert('Error', 'Could not get location: ' + err.message);
+      Alert.alert("Error", "Could not get location: " + err.message);
     }
   };
 
@@ -531,10 +654,13 @@ const HomeScreen = () => {
   };
 
   const goToProfileSetup = () => {
-    navigation.navigate('ProfileSetup', { canGoBack: true });
+    navigation.navigate("ProfileSetup", { canGoBack: true });
   };
 
-  const handleLongPress = (restaurant: Restaurant, layout: { x: number; y: number; width: number; height: number } | null) => {
+  const handleLongPress = (
+    restaurant: Restaurant,
+    layout: { x: number; y: number; width: number; height: number } | null
+  ) => {
     setRestaurantToDelete(restaurant);
     setDeleteModalVisible(true);
     setDeleteModalPosition(layout);
@@ -569,7 +695,7 @@ const HomeScreen = () => {
 
   useEffect(() => {
     // Preload the OnboardTakePhoto.mp4 video asset for help/onboarding
-    const videoModule = require('../assets/OnboardTakePhoto.mp4');
+    const videoModule = require("../assets/OnboardTakePhoto.mp4");
     Asset.loadAsync(videoModule).then(() => {
       const asset = Asset.fromModule(videoModule);
       setPreloadedVideoUri(asset.uri);
@@ -585,7 +711,10 @@ const HomeScreen = () => {
     const estWidth = title.length * baseFontSize * 0.6;
     if (estWidth > maxWidth) {
       // Reduce font size proportionally, but not below minFontSize
-      return Math.max(minFontSize, Math.floor(baseFontSize * maxWidth / estWidth));
+      return Math.max(
+        minFontSize,
+        Math.floor((baseFontSize * maxWidth) / estWidth)
+      );
     }
     return baseFontSize;
   }
@@ -611,7 +740,10 @@ const HomeScreen = () => {
     locationFilter: { lat: number; lng: number } | null;
     distance: number | null;
     handlePress: (item: RestaurantWithDistance) => void;
-    handleLongPress: (item: RestaurantWithDistance, layout: { x: number; y: number; width: number; height: number } | null) => void;
+    handleLongPress: (
+      item: RestaurantWithDistance,
+      layout: { x: number; y: number; width: number; height: number } | null
+    ) => void;
     onDelete: (item: RestaurantWithDistance) => void;
     openSwipeId: string | null;
     setOpenSwipeId: (id: string | null) => void;
@@ -624,14 +756,20 @@ const HomeScreen = () => {
     const animatedBg = isNew
       ? cardAnim.interpolate({
           inputRange: [0, 1],
-          outputRange: item.apimatch !== 'google' ? ['#fff', '#e5e5e5'] : ['#fff', '#22c55e'],
+          outputRange:
+            item.apimatch !== "google"
+              ? ["#fff", "#e5e5e5"]
+              : ["#fff", "#22c55e"],
         })
       : pressed
-        ? '#f0f0f0'
-        : '#fff';
+      ? "#f0f0f0"
+      : "#fff";
     const textColor = isNew
-      ? cardAnim.interpolate({ inputRange: [0, 1], outputRange: ['#000', item.apimatch !== 'google' ? '#000' : '#fff'] })
-      : '#000';
+      ? cardAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["#000", item.apimatch !== "google" ? "#000" : "#fff"],
+        })
+      : "#000";
     const lat = item.location?.coordinates?.[1] ?? 0;
     const lng = item.location?.coordinates?.[0] ?? 0;
     // Dynamic font size for restaurant name
@@ -641,7 +779,10 @@ const HomeScreen = () => {
       const maxWidth = windowWidth - 180; // account for padding/logo
       const estWidth = name.length * baseFontSize * 0.6;
       if (estWidth > maxWidth) {
-        return Math.max(minFontSize, Math.floor(baseFontSize * maxWidth / estWidth));
+        return Math.max(
+          minFontSize,
+          Math.floor((baseFontSize * maxWidth) / estWidth)
+        );
       }
       return baseFontSize;
     }
@@ -651,19 +792,21 @@ const HomeScreen = () => {
       const iconTranslate = dragX.interpolate({
         inputRange: [-SWIPE_LOCK_PX, 0],
         outputRange: [0, SWIPE_LOCK_PX],
-        extrapolate: 'clamp',
+        extrapolate: "clamp",
       });
       return (
-        <RNAnimated.View style={{
-          flexDirection: 'row',
-          justifyContent: 'flex-end',
-          alignItems: 'center',
-          height: '100%',
-          backgroundColor: 'transparent',
-          transform: [{ translateX: iconTranslate }],
-          width: SWIPE_LOCK_PX + 72,
-          overflow: 'visible',
-        }}>
+        <RNAnimated.View
+          style={{
+            flexDirection: "row",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            height: "100%",
+            backgroundColor: "transparent",
+            transform: [{ translateX: iconTranslate }],
+            width: SWIPE_LOCK_PX + 72,
+            overflow: "visible",
+          }}
+        >
           <TouchableOpacity
             onPress={async () => {
               await onDelete(item);
@@ -671,12 +814,12 @@ const HomeScreen = () => {
             style={{
               width: 56,
               height: 56,
-              justifyContent: 'center',
-              alignItems: 'center',
+              justifyContent: "center",
+              alignItems: "center",
               marginRight: 8,
               marginTop: 4,
               marginBottom: 35,
-              backgroundColor: 'transparent',
+              backgroundColor: "transparent",
             }}
             accessibilityLabel="Delete restaurant"
             activeOpacity={0.7}
@@ -691,12 +834,12 @@ const HomeScreen = () => {
             style={{
               width: 56,
               height: 56,
-              justifyContent: 'center',
-              alignItems: 'center',
+              justifyContent: "center",
+              alignItems: "center",
               marginRight: 8,
               marginTop: 4,
               marginBottom: 35,
-              backgroundColor: 'transparent',
+              backgroundColor: "transparent",
             }}
             accessibilityLabel="Edit restaurant"
             activeOpacity={0.7}
@@ -715,9 +858,11 @@ const HomeScreen = () => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             // Get card position on long press
             if (cardRef.current) {
-              (cardRef.current as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-                handleLongPress(item, { x, y, width, height });
-              });
+              (cardRef.current as any).measureInWindow(
+                (x: number, y: number, width: number, height: number) => {
+                  handleLongPress(item, { x, y, width, height });
+                }
+              );
             } else {
               handleLongPress(item, null);
             }
@@ -729,7 +874,10 @@ const HomeScreen = () => {
         <View ref={cardRef}>
           <AnimatedTouchableOpacity
             activeOpacity={0.7}
-            onPressIn={() => { setPressed(true); setOpenSwipeId(null); }}
+            onPressIn={() => {
+              setPressed(true);
+              setOpenSwipeId(null);
+            }}
             onPressOut={() => setPressed(false)}
             onPress={() => {
               handlePress(item);
@@ -738,46 +886,87 @@ const HomeScreen = () => {
             style={[
               styles.card,
               {
-                backgroundColor: pressed ? '#f0f0f0' : '#fff',
+                backgroundColor: pressed ? "#f0f0f0" : "#fff",
                 transform: pressed ? [{ scale: 1.04 }] : [],
-                shadowOffset: pressed ? { width: 0, height: 4 } : { width: 0, height: 4 },
-                shadowOpacity: pressed ? 0.13 : 0.10,
+                shadowOffset: pressed
+                  ? { width: 0, height: 4 }
+                  : { width: 0, height: 4 },
+                shadowOpacity: pressed ? 0.13 : 0.1,
                 shadowRadius: pressed ? 10 : 8,
                 elevation: pressed ? 8 : 6,
                 minHeight: 120,
                 paddingVertical: 28,
                 paddingHorizontal: 32,
               },
-              { flexDirection: 'row', alignItems: 'center' },
+              { flexDirection: "row", alignItems: "center" },
             ]}
           >
             {/* Overlay for selected card */}
             {selectedId === item.id && (
-              <View style={{
-                ...StyleSheet.absoluteFillObject,
-                backgroundColor: 'rgba(0,0,0,0.18)',
-                borderRadius: 24,
-                zIndex: 10,
-              }} pointerEvents="none" />
+              <View
+                style={{
+                  ...StyleSheet.absoluteFillObject,
+                  backgroundColor: "rgba(0,0,0,0.18)",
+                  borderRadius: 24,
+                  zIndex: 10,
+                }}
+                pointerEvents="none"
+              />
             )}
             {/* Only show logo for Google-matched cards */}
-            {item.apimatch === 'google' && item.brandLogo ? (
-              <View style={{ width: 36, height: 36, marginRight: 0, borderRadius: 10, overflow: 'hidden', backgroundColor: '#fff' }}>
-                <Image source={{ uri: item.brandLogo }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            {item.apimatch === "google" && item.brandLogo ? (
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  marginRight: 0,
+                  borderRadius: 10,
+                  overflow: "hidden",
+                  backgroundColor: "#fff",
+                }}
+              >
+                <Image
+                  source={{ uri: item.brandLogo }}
+                  style={{ width: "100%", height: "100%" }}
+                  resizeMode="cover"
+                />
               </View>
             ) : (
               <View style={{ width: 36, height: 36, marginRight: 0 }} />
             )}
-            <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', marginLeft: 60 }}>
-              <RNAnimated.Text style={[
-                styles.name,
-                { color: textColor, textAlign: 'left', alignSelf: 'flex-start', fontWeight: 'bold', fontFamily: 'ReadexPro-Bold', fontSize: getDynamicNameFontSize(getDisplayName(item)) }
-              ]}>
+            <View
+              style={{
+                flex: 1,
+                alignItems: "flex-start",
+                justifyContent: "center",
+                marginLeft: 60,
+              }}
+            >
+              <RNAnimated.Text
+                style={[
+                  styles.name,
+                  {
+                    color: textColor,
+                    textAlign: "left",
+                    alignSelf: "flex-start",
+                    fontWeight: "bold",
+                    fontFamily: "ReadexPro-Bold",
+                    fontSize: getDynamicNameFontSize(getDisplayName(item)),
+                  },
+                ]}
+              >
                 {getDisplayName(item)}
               </RNAnimated.Text>
               {locationFilter && distance !== null && (
-                <Text style={[styles.distanceText, { textAlign: 'left', alignSelf: 'flex-start' }]}> 
-                  <Text style={{ fontStyle: 'italic', color: '#555' }}>{distance.toFixed(1)} miles away</Text>
+                <Text
+                  style={[
+                    styles.distanceText,
+                    { textAlign: "left", alignSelf: "flex-start" },
+                  ]}
+                >
+                  <Text style={{ fontStyle: "italic", color: "#555" }}>
+                    {distance.toFixed(1)} miles away
+                  </Text>
                 </Text>
               )}
             </View>
@@ -808,7 +997,11 @@ const HomeScreen = () => {
           friction={0.7}
           overshootRight={false}
           onSwipeableRightOpen={handleSwipeableOpen}
-          containerStyle={{ marginBottom: 28, backgroundColor: 'transparent', overflow: 'visible' }}
+          containerStyle={{
+            marginBottom: 28,
+            backgroundColor: "transparent",
+            overflow: "visible",
+          }}
           childrenContainerStyle={undefined}
           dragOffsetFromRightEdge={SWIPE_LOCK_PX}
           useNativeAnimations={true}
@@ -845,7 +1038,7 @@ const HomeScreen = () => {
             toValue: 1,
             duration: 400,
             useNativeDriver: true,
-          })
+          }),
         ]).start();
         // After caution is shown for 2.5s, fade out and go home
         setTimeout(() => {
@@ -855,7 +1048,7 @@ const HomeScreen = () => {
             useNativeDriver: true,
           }).start(() => {
             setShowNoMenuModal(false);
-            navigation.navigate('Home');
+            navigation.navigate("Home");
           });
         }, 2500);
       }, 2500);
@@ -878,7 +1071,7 @@ const HomeScreen = () => {
           useNativeDriver: true,
         }).start(() => {
           setShowSuccessOverlay(false);
-          (navigation as any).navigate('Home', { fadeIn: true });
+          (navigation as any).navigate("Home", { fadeIn: true });
         });
       }, 1200); // Show for 1.2s, then fade out overlay
       return () => clearTimeout(timeout);
@@ -902,7 +1095,7 @@ const HomeScreen = () => {
     let location = { lat: 0, lng: 0 };
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
+      if (status === "granted") {
         const loc = await Location.getCurrentPositionAsync({});
         location = { lat: loc.coords.latitude, lng: loc.coords.longitude };
       }
@@ -913,24 +1106,41 @@ const HomeScreen = () => {
     let verifiedName = newName;
     let verifiedLocation = location;
     let googlePlace = undefined;
-    let apimatch = 'none';
-    if (googleResult && googleResult.apimatch === 'google' && googleResult.googlePlace) {
+    let apimatch = "none";
+    if (
+      googleResult &&
+      googleResult.apimatch === "google" &&
+      googleResult.googlePlace
+    ) {
       verifiedName = googleResult.googlePlace.name;
       verifiedLocation = googleResult.googlePlace.location;
       googlePlace = googleResult.googlePlace;
-      apimatch = 'google';
+      apimatch = "google";
     }
     // 3. logo.dev for logo (only if apimatch is 'google')
-    let brandLogo = '';
-    if (apimatch === 'google') {
-      brandLogo = await fetchLogoDevUrl(verifiedName, verifiedName) || '';
+    let brandLogo = "";
+    if (apimatch === "google") {
+      brandLogo = (await fetchLogoDevUrl(verifiedName, verifiedName)) || "";
     }
 
     // Debug logging before saving
-    console.log('[Edit Debug] googleResult:', googleResult);
-    console.log('[Edit Debug] apimatch:', apimatch, 'verifiedName:', verifiedName, 'verifiedLocation:', verifiedLocation, 'googlePlace:', googlePlace, 'brandLogo:', brandLogo);
-    if (apimatch !== 'google') {
-      console.warn('[Edit Debug] WARNING: apimatch is not google. This edit will be saved as custom.');
+    console.log("[Edit Debug] googleResult:", googleResult);
+    console.log(
+      "[Edit Debug] apimatch:",
+      apimatch,
+      "verifiedName:",
+      verifiedName,
+      "verifiedLocation:",
+      verifiedLocation,
+      "googlePlace:",
+      googlePlace,
+      "brandLogo:",
+      brandLogo
+    );
+    if (apimatch !== "google") {
+      console.warn(
+        "[Edit Debug] WARNING: apimatch is not google. This edit will be saved as custom."
+      );
     }
 
     try {
@@ -941,34 +1151,44 @@ const HomeScreen = () => {
         verifiedLocation,
         apimatch,
         googlePlace,
-        brandLogo || '',
+        brandLogo || "",
         verifiedLocation
       );
       setEditModalVisible(false);
       setEditingRestaurant(null);
-      setEditNameInput('');
+      setEditNameInput("");
       // Debug: log restaurants after fetch
       const updatedList = await fetchRestaurants();
-      const updatedRestaurant = updatedList.find(r => r.id === editingRestaurant.id);
-      console.log('[Edit] Updated restaurant:', updatedRestaurant);
+      const updatedRestaurant = updatedList.find(
+        (r) => r.id === editingRestaurant.id
+      );
+      console.log("[Edit] Updated restaurant:", updatedRestaurant);
       // Add a buffer before animating to ensure state is updated and avoid glitches
       setTimeout(() => {
         setNewlyAddedRestaurantId(editingRestaurant.id);
         RNAnimated.sequence([
-          RNAnimated.timing(cardAnim, { toValue: 1, duration: 400, useNativeDriver: false }),
+          RNAnimated.timing(cardAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: false,
+          }),
           RNAnimated.delay(1000),
-          RNAnimated.timing(cardAnim, { toValue: 0, duration: 400, useNativeDriver: false }),
+          RNAnimated.timing(cardAnim, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: false,
+          }),
         ]).start(() => {
           requestAnimationFrame(() => setNewlyAddedRestaurantId(null));
         });
       }, 200); // 200ms buffer
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to update restaurant name.');
+      Alert.alert("Error", e.message || "Failed to update restaurant name.");
     } finally {
       setEditSaving(false);
       setTimeout(() => {
         closeAllModals();
-        console.log('DEBUG overlay states after edit:', {
+        console.log("DEBUG overlay states after edit:", {
           showLoadingOverlay,
           showSuccessOverlay,
           showNoMenuModal,
@@ -1004,63 +1224,135 @@ const HomeScreen = () => {
   const buttonFade = scrollY <= 0 ? 1 : scrollY >= 70 ? 0 : 1 - scrollY / 70;
   const buttonFadeStyle = { opacity: buttonFade };
 
-  const listHeader = useMemo(() => (
-    <>
-      {restaurants.length > 0 && (
-        <View style={{ width: '100%', maxWidth: 420, alignSelf: 'center', marginTop: 140, marginBottom: 40, flexDirection: 'row', alignItems: 'center', zIndex: 100 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 28, height: 56, paddingLeft: 20, paddingRight: 0, flex: 1, minWidth: 0, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 3 }}>
-            {searchBarVisible ? (
-              <TouchableOpacity onPress={() => { setSearchText(''); setSearchBarVisible(false); }} accessibilityLabel="Clear search text" hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Feather name="x-circle" size={24} color="#000" style={{ marginRight: 12 }} />
-              </TouchableOpacity>
-            ) : (
-              <FontAwesome name="search" size={28} color="#DA291C" style={{ marginRight: 12 }} />
-            )}
-            <TextInput
-              ref={ref => {
-                searchInputRef.current = ref;
-                if (ref) console.log('[DEBUG] searchInputRef set', ref);
-              }}
-              style={{ flex: 1, fontSize: 18, fontFamily: 'ReadexPro-Regular', color: '#222', backgroundColor: 'transparent', height: 56 }}
-              placeholder="Search restaurants"
-              placeholderTextColor="#999"
-              value={searchText}
-              onChangeText={setSearchText}
-              returnKeyType="search"
-              onFocus={() => setSearchBarVisible(true)}
-              onBlur={() => { if (!searchText) setSearchBarVisible(false); }}
-            />
-          </View>
-          <TouchableOpacity
-            onPress={async () => {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              if (locationFilter) {
-                setLocationFilter(null);
-              } else {
-                await handleLocationPress();
-              }
-            }}
+  const listHeader = useMemo(
+    () => (
+      <>
+        {restaurants.length > 0 && (
+          <View
             style={{
-              marginLeft: 12,
-              borderRadius: 28,
-              width: 48,
-              height: 48,
-              justifyContent: 'center',
-              alignItems: 'center',
-              backgroundColor: locationFilter ? '#DA291C' : '#fff',
-              shadowColor: '#000',
-              shadowOpacity: 0.08,
-              shadowRadius: 4,
-              elevation: 2,
+              width: "100%",
+              maxWidth: 420,
+              alignSelf: "center",
+              marginTop: 140,
+              marginBottom: 40,
+              flexDirection: "row",
+              alignItems: "center",
+              zIndex: 100,
             }}
-            accessibilityLabel="Location"
           >
-            <Feather name="map-pin" size={28} color={locationFilter ? '#fff' : '#DA291C'} />
-          </TouchableOpacity>
-        </View>
-      )}
-    </>
-  ), [setCautionModalVisible, setSearchBarVisible, setLocationFilter, locationFilter, searchBarVisible, searchText, windowWidth, cautionModalVisible, restaurants.length, buttonFadeStyle]);
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#FFFFFF",
+                borderRadius: 28,
+                height: 56,
+                paddingLeft: 20,
+                paddingRight: 0,
+                flex: 1,
+                minWidth: 0,
+                shadowColor: "#000",
+                shadowOpacity: 0.07,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 3,
+              }}
+            >
+              {searchBarVisible ? (
+                <TouchableOpacity
+                  onPress={() => {
+                    setSearchText("");
+                    setSearchBarVisible(false);
+                  }}
+                  accessibilityLabel="Clear search text"
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Feather
+                    name="x-circle"
+                    size={24}
+                    color="#000"
+                    style={{ marginRight: 12 }}
+                  />
+                </TouchableOpacity>
+              ) : (
+                <FontAwesome
+                  name="search"
+                  size={28}
+                  color="#DA291C"
+                  style={{ marginRight: 12 }}
+                />
+              )}
+              <TextInput
+                ref={(ref) => {
+                  searchInputRef.current = ref;
+                  if (ref) console.log("[DEBUG] searchInputRef set", ref);
+                }}
+                style={{
+                  flex: 1,
+                  fontSize: 18,
+                  fontFamily: "ReadexPro-Regular",
+                  color: "#222",
+                  backgroundColor: "transparent",
+                  height: 56,
+                }}
+                placeholder="Search restaurants"
+                placeholderTextColor="#999"
+                value={searchText}
+                onChangeText={setSearchText}
+                returnKeyType="search"
+                onFocus={() => setSearchBarVisible(true)}
+                onBlur={() => {
+                  if (!searchText) setSearchBarVisible(false);
+                }}
+              />
+            </View>
+            <TouchableOpacity
+              onPress={async () => {
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (locationFilter) {
+                  setLocationFilter(null);
+                } else {
+                  await handleLocationPress();
+                }
+              }}
+              style={{
+                marginLeft: 12,
+                borderRadius: 28,
+                width: 48,
+                height: 48,
+                justifyContent: "center",
+                alignItems: "center",
+                backgroundColor: locationFilter ? "#DA291C" : "#fff",
+                shadowColor: "#000",
+                shadowOpacity: 0.08,
+                shadowRadius: 4,
+                elevation: 2,
+              }}
+              accessibilityLabel="Location"
+            >
+              <Feather
+                name="map-pin"
+                size={28}
+                color={locationFilter ? "#fff" : "#DA291C"}
+              />
+            </TouchableOpacity>
+          </View>
+        )}
+      </>
+    ),
+    [
+      setCautionModalVisible,
+      setSearchBarVisible,
+      setLocationFilter,
+      locationFilter,
+      searchBarVisible,
+      searchText,
+      windowWidth,
+      cautionModalVisible,
+      restaurants.length,
+      buttonFadeStyle,
+    ]
+  );
 
   useEffect(() => {
     setDebouncedSearchText(searchText);
@@ -1074,7 +1366,7 @@ const HomeScreen = () => {
       await deleteRestaurant(restaurantToDelete.id);
       await fetchRestaurants();
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to delete restaurant.');
+      Alert.alert("Error", e.message || "Failed to delete restaurant.");
     } finally {
       setDeleting(false);
       setDeleteModalVisible(false);
@@ -1105,27 +1397,52 @@ const HomeScreen = () => {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-      <RNAnimated.View style={[styles.container, showHomeFadeIn ? { opacity: homeFadeAnim } : {}]}>
+      <RNAnimated.View
+        style={[
+          styles.container,
+          showHomeFadeIn ? { opacity: homeFadeAnim } : {},
+        ]}
+      >
         <GestureHandlerRootView style={{ flex: 1 }}>
           {/* Fixed EpiEats Title */}
-          <RNAnimated.View style={[{
-            position: 'absolute',
-            top: 85,
-            left: 0,
-            right: 0,
-            alignItems: 'center',
-            zIndex: 50,
-            pointerEvents: 'box-none',
-          }, buttonFadeStyle]}
-          pointerEvents="box-none"
+          <RNAnimated.View
+            style={[
+              {
+                position: "absolute",
+                top: 85,
+                left: 0,
+                right: 0,
+                alignItems: "center",
+                zIndex: 50,
+                pointerEvents: "box-none",
+              },
+              buttonFadeStyle,
+            ]}
+            pointerEvents="box-none"
           >
-            <TouchableOpacity onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setCautionModalVisible(true);
-            }}>
-              <Text style={[styles.title, { fontSize: 28, marginBottom: 0 }]}> 
-                <Text style={[styles.epi, cautionModalVisible && { color: '#DA291C' }]}>Epi</Text>
-                <Text style={[styles.eats, cautionModalVisible && { color: '#DA291C' }]}>Eats</Text>
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setCautionModalVisible(true);
+              }}
+            >
+              <Text style={[styles.title, { fontSize: 28, marginBottom: 0 }]}>
+                <Text
+                  style={[
+                    styles.epi,
+                    cautionModalVisible && { color: "#DA291C" },
+                  ]}
+                >
+                  Epi
+                </Text>
+                <Text
+                  style={[
+                    styles.eats,
+                    cautionModalVisible && { color: "#DA291C" },
+                  ]}
+                >
+                  Eats
+                </Text>
               </Text>
             </TouchableOpacity>
           </RNAnimated.View>
@@ -1148,14 +1465,16 @@ const HomeScreen = () => {
               const isNew = newlyAddedRestaurantId === item.id;
               return (
                 <RestaurantCard
-                  key={item.id + '-' + (item.apimatch || 'custom')}
+                  key={item.id + "-" + (item.apimatch || "custom")}
                   item={item}
                   isNew={isNew}
                   cardAnim={cardAnim}
                   locationFilter={locationFilter}
                   distance={distance}
                   handlePress={handlePress}
-                  handleLongPress={(item, layout) => handleLongPress(item, layout)}
+                  handleLongPress={(item, layout) =>
+                    handleLongPress(item, layout)
+                  }
                   onDelete={async (restaurant) => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     await deleteRestaurant(restaurant.id);
@@ -1167,30 +1486,62 @@ const HomeScreen = () => {
                 />
               );
             }}
-            keyExtractor={item => item.id + '-' + (item.apimatch || 'custom')}
-            contentContainerStyle={[styles.listContainer, { paddingHorizontal: 20, paddingTop: 55 }]}
+            keyExtractor={(item) => item.id + "-" + (item.apimatch || "custom")}
+            contentContainerStyle={[
+              styles.listContainer,
+              { paddingHorizontal: 20, paddingTop: 55 },
+            ]}
             ListHeaderComponent={listHeader}
             ListFooterComponent={
               loading
-                ? () => <Text style={{ alignSelf: 'center', marginTop: 30 }}>Loading...</Text>
+                ? () => (
+                    <Text style={{ alignSelf: "center", marginTop: 30 }}>
+                      Loading...
+                    </Text>
+                  )
                 : restaurants.length === 0
-                  ? () => (
-                      <View style={styles.emptyContainer}>
-                        <Text style={styles.emptyText}>Scan your first menu!</Text>
-                        <MenuSvg width={72} height={72} style={styles.menuSvg} color="#E0E0E0" />
-                        <Svg width={64} height={64} viewBox="0 0 64 64" style={styles.downArrowSvg}>
-                          <Path d="M32 8v40M32 48l-16-16M32 48l16-16" stroke="#E0E0E0" strokeWidth={6} strokeLinecap="round" strokeLinejoin="round" />
-                        </Svg>
-                      </View>
-                    )
-                  : null
+                ? () => (
+                    <View style={styles.emptyContainer}>
+                      <Text style={styles.emptyText}>
+                        Scan your first menu!
+                      </Text>
+                      <MenuSvg
+                        width={72}
+                        height={72}
+                        style={styles.menuSvg}
+                        color="#E0E0E0"
+                      />
+                      <Svg
+                        width={64}
+                        height={64}
+                        viewBox="0 0 64 64"
+                        style={styles.downArrowSvg}
+                      >
+                        <Path
+                          d="M32 8v40M32 48l-16-16M32 48l16-16"
+                          stroke="#E0E0E0"
+                          strokeWidth={6}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </Svg>
+                    </View>
+                  )
+                : null
             }
             onScroll={onScroll}
             scrollEventThrottle={16}
           />
 
           <View style={styles.bottomBar}>
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
               <TouchableOpacity
                 style={styles.iconButton}
                 onPress={takePhoto}
@@ -1203,25 +1554,56 @@ const HomeScreen = () => {
 
           {/* Loading Overlay - render last so it's above everything */}
           {showLoadingOverlay && !showNoMenuModal && (
-            <View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
-              <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { zIndex: 9999, elevation: 9999 },
+              ]}
+              pointerEvents="auto"
+            >
+              <BlurView
+                intensity={80}
+                style={StyleSheet.absoluteFill}
+                tint="light"
+              />
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
                 <AnimatedMagnifierPeanut />
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 32 }}>
-                  <Text style={{ fontSize: 22, color: '#DA291C', fontWeight: 'bold', letterSpacing: 1 }}>Finding allergens</Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 32,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 22,
+                      color: "#DA291C",
+                      fontWeight: "bold",
+                      letterSpacing: 1,
+                    }}
+                  >
+                    Finding allergens
+                  </Text>
                   <AnimatedDots />
                 </View>
                 {/* X button to cancel loading */}
                 <TouchableOpacity
                   style={{
                     marginTop: 66,
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    alignItems: "center",
+                    justifyContent: "center",
                     width: 48,
                     height: 48,
                     borderRadius: 24,
-                    backgroundColor: '#fff',
-                    shadowColor: '#000',
+                    backgroundColor: "#fff",
+                    shadowColor: "#000",
                     shadowOpacity: 0.08,
                     shadowRadius: 4,
                     shadowOffset: { width: 0, height: 4 },
@@ -1237,22 +1619,58 @@ const HomeScreen = () => {
           )}
 
           {showSuccessOverlay && (
-            <RNAnimated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999, opacity: successOverlayAnim }]} pointerEvents="auto">
-              <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <RNAnimated.View
+              style={[
+                StyleSheet.absoluteFill,
+                { zIndex: 9999, elevation: 9999, opacity: successOverlayAnim },
+              ]}
+              pointerEvents="auto"
+            >
+              <BlurView
+                intensity={80}
+                style={StyleSheet.absoluteFill}
+                tint="light"
+              />
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
                 <FadeInCheck visible={showSuccessOverlay} />
               </View>
             </RNAnimated.View>
           )}
 
           {showNoMenuModal && (
-            <RNAnimated.View style={[StyleSheet.absoluteFill, { zIndex: 9999, elevation: 9999 }]} pointerEvents="auto">
-              <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <RNAnimated.View style={{ position: 'absolute', opacity: magnifierFadeAnim }}>
+            <RNAnimated.View
+              style={[
+                StyleSheet.absoluteFill,
+                { zIndex: 9999, elevation: 9999 },
+              ]}
+              pointerEvents="auto"
+            >
+              <BlurView
+                intensity={80}
+                style={StyleSheet.absoluteFill}
+                tint="light"
+              />
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <RNAnimated.View
+                  style={{ position: "absolute", opacity: magnifierFadeAnim }}
+                >
                   <AnimatedMagnifierPeanut />
                 </RNAnimated.View>
-                <RNAnimated.View style={{ position: 'absolute', opacity: cautionFadeAnim }}>
+                <RNAnimated.View
+                  style={{ position: "absolute", opacity: cautionFadeAnim }}
+                >
                   <AnimatedCaution />
                 </RNAnimated.View>
               </View>
@@ -1268,38 +1686,77 @@ const HomeScreen = () => {
               setPendingImageBase64(null);
               setPendingImageUri(null);
               setPendingLocation(null);
-              setRestaurantNameInput('');
-              navigation.navigate('Home');
+              setRestaurantNameInput("");
+              navigation.navigate("Home");
             }}
           >
             <Pressable
-              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.3)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
               onPress={() => {
                 setRestaurantNameModalVisible(false);
                 setPendingImageBase64(null);
                 setPendingImageUri(null);
                 setPendingLocation(null);
-                setRestaurantNameInput('');
-                navigation.navigate('Home');
+                setRestaurantNameInput("");
+                navigation.navigate("Home");
               }}
             >
               <Pressable
-                style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
+                style={{
+                  backgroundColor: "#fff",
+                  borderRadius: 16,
+                  padding: 24,
+                  width: "85%",
+                  alignItems: "center",
+                }}
                 onPress={(e) => e.stopPropagation()}
               >
-                <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Enter Restaurant Name</Text>
+                <Text
+                  style={{
+                    fontSize: 20,
+                    fontWeight: "bold",
+                    marginBottom: 18,
+                    color: "#222",
+                  }}
+                >
+                  Enter Restaurant Name
+                </Text>
                 <TextInput
-                  style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16, fontFamily: 'ReadexPro-Regular' }}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#ccc",
+                    borderRadius: 8,
+                    padding: 10,
+                    width: "100%",
+                    marginBottom: 18,
+                    fontSize: 16,
+                    fontFamily: "ReadexPro-Regular",
+                  }}
                   placeholder="Restaurant Name"
                   value={restaurantNameInput}
                   onChangeText={setRestaurantNameInput}
                   autoFocus
                 />
                 <TouchableOpacity
-                  style={{ backgroundColor: '#DA291C', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, alignItems: 'center' }}
+                  style={{
+                    backgroundColor: "#DA291C",
+                    paddingVertical: 8,
+                    paddingHorizontal: 24,
+                    borderRadius: 8,
+                    alignItems: "center",
+                  }}
                   onPress={handleRestaurantNameSubmit}
                 >
-                  <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Submit</Text>
+                  <Text
+                    style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}
+                  >
+                    Submit
+                  </Text>
                 </TouchableOpacity>
               </Pressable>
             </Pressable>
@@ -1312,30 +1769,36 @@ const HomeScreen = () => {
             onRequestClose={closeAllModals}
           >
             {deleteModalPosition ? (
-              <View style={{
-                position: 'absolute',
-                top: deleteModalPosition.y + deleteModalPosition.height / 2 - 60, // center vertically, modal height ~96
-                left: deleteModalPosition.x + deleteModalPosition.width / 2 - 110, // center horizontally, modal width ~220
-                zIndex: 9999,
-                backgroundColor: 'transparent',
-                minWidth: 0,
-                minHeight: 0,
-              }}>
-                <View style={{
-                  backgroundColor: '#fff',
-                  borderRadius: 16,
-                  padding: 12,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  elevation: 8,
-                  shadowColor: '#000',
-                  shadowOpacity: 0.12,
-                  shadowRadius: 6,
-                  shadowOffset: { width: 0, height: 2 },
-                  minWidth: 220,
-                  minHeight: 96,
-                  justifyContent: 'center',
-                }}>
+              <View
+                style={{
+                  position: "absolute",
+                  top:
+                    deleteModalPosition.y + deleteModalPosition.height / 2 - 60, // center vertically, modal height ~96
+                  left:
+                    deleteModalPosition.x + deleteModalPosition.width / 2 - 110, // center horizontally, modal width ~220
+                  zIndex: 9999,
+                  backgroundColor: "transparent",
+                  minWidth: 0,
+                  minHeight: 0,
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "#fff",
+                    borderRadius: 16,
+                    padding: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    elevation: 8,
+                    shadowColor: "#000",
+                    shadowOpacity: 0.12,
+                    shadowRadius: 6,
+                    shadowOffset: { width: 0, height: 2 },
+                    minWidth: 220,
+                    minHeight: 96,
+                    justifyContent: "center",
+                  }}
+                >
                   <TouchableOpacity
                     onPress={closeAllModals}
                     style={{ marginHorizontal: 10, padding: 8 }}
@@ -1357,7 +1820,8 @@ const HomeScreen = () => {
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                       closeAllModals();
-                      if (restaurantToDelete) handleEditRestaurant(restaurantToDelete);
+                      if (restaurantToDelete)
+                        handleEditRestaurant(restaurantToDelete);
                     }}
                     style={{ marginHorizontal: 10, padding: 8 }}
                     accessibilityLabel="Edit"
@@ -1367,7 +1831,7 @@ const HomeScreen = () => {
                 </View>
               </View>
             ) : (
-              <View style={{ flex: 1, backgroundColor: 'transparent' }} />
+              <View style={{ flex: 1, backgroundColor: "transparent" }} />
             )}
           </Modal>
 
@@ -1379,36 +1843,103 @@ const HomeScreen = () => {
             onRequestClose={closeAllModals}
           >
             <Pressable
-              style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.3)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
               onPress={closeAllModals}
             >
               <Pressable
-                style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%', alignItems: 'center' }}
+                style={{
+                  backgroundColor: "#fff",
+                  borderRadius: 16,
+                  padding: 24,
+                  width: "85%",
+                  alignItems: "center",
+                }}
                 onPress={(e) => e.stopPropagation()}
               >
-                <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 18, color: '#222' }}>Apply Changes?</Text>
+                <Text
+                  style={{
+                    fontSize: 20,
+                    fontWeight: "bold",
+                    marginBottom: 18,
+                    color: "#222",
+                  }}
+                >
+                  Apply Changes?
+                </Text>
                 <TextInput
-                  style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, width: '100%', marginBottom: 18, fontSize: 16, fontFamily: 'ReadexPro-Regular' }}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#ccc",
+                    borderRadius: 8,
+                    padding: 10,
+                    width: "100%",
+                    marginBottom: 18,
+                    fontSize: 16,
+                    fontFamily: "ReadexPro-Regular",
+                  }}
                   placeholder="Restaurant Name"
                   value={editNameInput}
                   onChangeText={setEditNameInput}
                   autoFocus
                   editable={!editSaving}
                 />
-                <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between' }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    width: "100%",
+                    justifyContent: "space-between",
+                  }}
+                >
                   <TouchableOpacity
-                    style={{ backgroundColor: '#eee', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, marginRight: 8, flex: 1, alignItems: 'center' }}
+                    style={{
+                      backgroundColor: "#eee",
+                      paddingVertical: 8,
+                      paddingHorizontal: 24,
+                      borderRadius: 8,
+                      marginRight: 8,
+                      flex: 1,
+                      alignItems: "center",
+                    }}
                     onPress={closeAllModals}
                     disabled={editSaving}
                   >
-                    <Text style={{ color: '#222', fontSize: 16, fontWeight: 'bold' }}>Cancel</Text>
+                    <Text
+                      style={{
+                        color: "#222",
+                        fontSize: 16,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Cancel
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={{ backgroundColor: '#000', paddingVertical: 8, paddingHorizontal: 24, borderRadius: 8, flex: 1, alignItems: 'center', opacity: editSaving ? 0.6 : 1 }}
+                    style={{
+                      backgroundColor: "#000",
+                      paddingVertical: 8,
+                      paddingHorizontal: 24,
+                      borderRadius: 8,
+                      flex: 1,
+                      alignItems: "center",
+                      opacity: editSaving ? 0.6 : 1,
+                    }}
                     onPress={handleEditNameSubmit}
                     disabled={editSaving}
                   >
-                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>{editSaving ? 'Saving...' : 'Apply'}</Text>
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 16,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {editSaving ? "Saving..." : "Apply"}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </Pressable>
@@ -1422,36 +1953,112 @@ const HomeScreen = () => {
             transparent
             onRequestClose={() => setCautionModalVisible(false)}
           >
-            <BlurView intensity={80} style={StyleSheet.absoluteFill} tint="light" />
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-              <View style={{ backgroundColor: '#fff', borderRadius: 18, padding: 32, width: '85%', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 5 }}>
-                <Feather name="alert-triangle" size={48} color="#DA291C" style={{ marginBottom: 18 }} />
-                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#DA291C', marginBottom: 12 }}>Disclaimer</Text>
-                <Text style={{ fontSize: 16, color: '#222', textAlign: 'center', marginBottom: 18 }}>
-                  This app is for informational purposes only and does not replace professional medical advice. Always confirm allergen information with restaurant staff or your physician. The creators of this app are not liable for any allergic reactions or health issues.
+            <BlurView
+              intensity={80}
+              style={StyleSheet.absoluteFill}
+              tint="light"
+            />
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                alignItems: "center",
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: "#fff",
+                  borderRadius: 18,
+                  padding: 32,
+                  width: "85%",
+                  alignItems: "center",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.2,
+                  shadowRadius: 8,
+                  elevation: 5,
+                }}
+              >
+                <Feather
+                  name="alert-triangle"
+                  size={48}
+                  color="#DA291C"
+                  style={{ marginBottom: 18 }}
+                />
+                <Text
+                  style={{
+                    fontSize: 22,
+                    fontWeight: "bold",
+                    color: "#DA291C",
+                    marginBottom: 12,
+                  }}
+                >
+                  Disclaimer
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: "#222",
+                    textAlign: "center",
+                    marginBottom: 18,
+                  }}
+                >
+                  This app is for informational purposes only and does not
+                  replace professional medical advice. Always confirm allergen
+                  information with restaurant staff or your physician. The
+                  creators of this app are not liable for any allergic reactions
+                  or health issues.
                 </Text>
                 <TouchableOpacity
-                  style={{ backgroundColor: '#DA291C', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 32, marginTop: 8 }}
+                  style={{
+                    backgroundColor: "#DA291C",
+                    borderRadius: 8,
+                    paddingVertical: 8,
+                    paddingHorizontal: 32,
+                    marginTop: 8,
+                  }}
                   onPress={() => setCautionModalVisible(false)}
                 >
-                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Understood!</Text>
+                  <Text
+                    style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}
+                  >
+                    Understood!
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
           </Modal>
 
           {/* Floating help button in top left */}
-          <RNAnimated.View style={[styles.helpButtonLeft, buttonFadeStyle]} pointerEvents={undefined}>
+          <RNAnimated.View
+            style={[styles.helpButtonLeft, buttonFadeStyle]}
+            pointerEvents={undefined}
+          >
             <TouchableOpacity
-              onPress={() => navigation.navigate('OnboardingCarouselDemo' as any, { fromHelp: true, preloadedVideoUri })}
+              onPress={() =>
+                navigation.navigate("OnboardingCarouselDemo" as any, {
+                  fromHelp: true,
+                  preloadedVideoUri,
+                })
+              }
               accessibilityLabel="Help"
             >
               <FontAwesome name="question-circle" size={30} color="#DA291C" />
             </TouchableOpacity>
           </RNAnimated.View>
           {/* Floating profile button in top right */}
-          <RNAnimated.View style={[styles.profileButtonRight, buttonFadeStyle]} pointerEvents={undefined}>
-            <TouchableOpacity onPress={goToProfileSetup} accessibilityLabel="Profile">
+          <RNAnimated.View
+            style={[styles.profileButtonRight, buttonFadeStyle]}
+            pointerEvents={undefined}
+          >
+            <TouchableOpacity
+              onPress={goToProfileSetup}
+              accessibilityLabel="Profile"
+            >
               <FontAwesome name="user" size={30} color="#DA291C" />
             </TouchableOpacity>
           </RNAnimated.View>
@@ -1464,231 +2071,231 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    overflow: 'visible',
+    backgroundColor: "#fff",
+    overflow: "visible",
   },
   titleContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 2,
   },
   title: {
-    flexDirection: 'row',
+    flexDirection: "row",
     fontSize: 28,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 0,
   },
   epi: {
-    fontFamily: 'ReadexPro-Regular',
-    fontWeight: '400',
-    color: '#222',
+    fontFamily: "ReadexPro-Regular",
+    fontWeight: "400",
+    color: "#222",
   },
   eats: {
-    fontFamily: 'ReadexPro-Bold',
-    fontWeight: 'bold',
-    color: '#DA291C',
+    fontFamily: "ReadexPro-Bold",
+    fontWeight: "bold",
+    color: "#DA291C",
   },
   searchBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     marginBottom: 10,
     marginTop: 32,
     zIndex: 10,
-    position: 'relative',
+    position: "relative",
   },
   searchBar: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopRightRadius: 25,
     borderBottomRightRadius: 25,
     borderWidth: 2,
-    borderColor: '#000',
+    borderColor: "#000",
     padding: 10,
     fontSize: 16,
     borderLeftWidth: 0,
     height: 44,
-    fontFamily: 'ReadexPro-Regular',
+    fontFamily: "ReadexPro-Regular",
   },
   listContainer: {
     paddingHorizontal: 20,
     paddingBottom: 80,
   },
   card: {
-    width: '100%',
+    width: "100%",
     marginBottom: 28,
     paddingVertical: 28,
     paddingHorizontal: 32,
     borderRadius: 24,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
+    backgroundColor: "#fff",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'visible',
-    flexDirection: 'row',
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "visible",
+    flexDirection: "row",
   },
   name: {
     fontSize: 26,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginBottom: 0,
-    fontFamily: 'ReadexPro-Bold',
+    fontFamily: "ReadexPro-Bold",
   },
   bottomBar: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
-    width: '100%',
+    width: "100%",
     height: 90,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
     borderTopWidth: 0.2,
-    borderTopColor: '#ccc',
+    borderTopColor: "#ccc",
   },
   iconRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 24,
   },
   iconButton: {
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
     borderRadius: 0,
     width: 48,
     height: 48,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 0,
-    borderColor: 'transparent',
+    borderColor: "transparent",
     marginHorizontal: 12,
-    alignSelf: 'center',
+    alignSelf: "center",
     marginBottom: 20,
   },
   locationButton: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 25,
     borderBottomLeftRadius: 25,
     width: 44,
     height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: '#000',
+    borderColor: "#000",
     borderRightWidth: 0,
   },
   locationButtonActive: {
-    backgroundColor: '#DA291C',
-    borderColor: '#DA291C',
+    backgroundColor: "#DA291C",
+    borderColor: "#DA291C",
   },
   profileButtonLeft: {
-    position: 'absolute',
+    position: "absolute",
     top: 80,
     left: 24,
     zIndex: 20,
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 4,
   },
   userNameContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 80,
     left: 24,
     zIndex: 11,
-    backgroundColor: 'transparent',
+    backgroundColor: "transparent",
   },
   userNameText: {
     fontSize: 22,
-    fontWeight: 'bold',
-    color: '#DA291C',
-    fontFamily: 'ReadexPro-Bold',
+    fontWeight: "bold",
+    color: "#DA291C",
+    fontFamily: "ReadexPro-Bold",
   },
   distanceText: {
     marginTop: 8,
     fontSize: 15,
-    fontStyle: 'italic',
-    color: '#555',
-    textAlign: 'center',
+    fontStyle: "italic",
+    color: "#555",
+    textAlign: "center",
   },
   helpButtonRight: {
-    position: 'absolute',
+    position: "absolute",
     top: 80,
     right: 24,
     zIndex: 20,
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 4,
   },
   helpButtonLeft: {
-    position: 'absolute',
+    position: "absolute",
     top: 80,
     left: 24,
     zIndex: 20,
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 4,
   },
   profileButtonRight: {
-    position: 'absolute',
+    position: "absolute",
     top: 80,
     right: 24,
     zIndex: 20,
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    shadowColor: '#000',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 4,
   },
   emptyContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
+    alignItems: "center",
+    justifyContent: "flex-end",
     marginTop: 320,
     marginBottom: 120,
   },
   emptyText: {
-    color: '#E0E0E0',
-    fontWeight: 'bold',
+    color: "#E0E0E0",
+    fontWeight: "bold",
     fontSize: 26,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 24,
-    fontFamily: 'ReadexPro-Bold',
+    fontFamily: "ReadexPro-Bold",
   },
   downArrowSvg: {
     marginTop: -10,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   menuSvg: {
     marginBottom: 32,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
 });
 
@@ -1711,7 +2318,9 @@ const AnimatedMagnifierPeanut = () => {
       requestAnimationFrame(animate);
     }
     animate();
-    return () => { running = false; };
+    return () => {
+      running = false;
+    };
   }, []);
 
   // The icon will be centered in a flex container, and the circle will be relative to that center
@@ -1719,9 +2328,30 @@ const AnimatedMagnifierPeanut = () => {
   const y = radius * Math.sin(angle);
 
   return (
-    <View style={{ width: iconSize * 2, height: iconSize * 2, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ position: 'absolute', left: '50%', top: '50%', marginLeft: -iconSize / 2 + x, marginTop: -iconSize / 2 + y }}>
-        <FontAwesome5 name="search" size={iconSize} color="#DA291C" solid style={{ fontWeight: 'bold' }} />
+    <View
+      style={{
+        width: iconSize * 2,
+        height: iconSize * 2,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <View
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          marginLeft: -iconSize / 2 + x,
+          marginTop: -iconSize / 2 + y,
+        }}
+      >
+        <FontAwesome5
+          name="search"
+          size={iconSize}
+          color="#DA291C"
+          solid
+          style={{ fontWeight: "bold" }}
+        />
       </View>
     </View>
   );
@@ -1736,7 +2366,11 @@ const AnimatedDots = () => {
     }, 400);
     return () => clearInterval(interval);
   }, []);
-  return <Text style={{ color: '#DA291C', fontSize: 22, fontWeight: 'bold' }}>{'.'.repeat(dotCount)}</Text>;
+  return (
+    <Text style={{ color: "#DA291C", fontSize: 22, fontWeight: "bold" }}>
+      {".".repeat(dotCount)}
+    </Text>
+  );
 };
 
 // Restore FadeInCheck with internal animation and visible prop
@@ -1754,9 +2388,30 @@ const FadeInCheck = ({ visible }: { visible: boolean }) => {
     }
   }, [visible]);
   return (
-    <RNAnimated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
-      <Feather name="check" size={120} color="#22c55e" style={{ fontWeight: 'bold' }} />
-      <Text style={{ marginTop: 32, fontSize: 36, color: '#22c55e', fontWeight: 'bold', letterSpacing: 1 }}>Success!</Text>
+    <RNAnimated.View
+      style={{
+        opacity: fadeAnim,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Feather
+        name="check"
+        size={120}
+        color="#22c55e"
+        style={{ fontWeight: "bold" }}
+      />
+      <Text
+        style={{
+          marginTop: 32,
+          fontSize: 36,
+          color: "#22c55e",
+          fontWeight: "bold",
+          letterSpacing: 1,
+        }}
+      >
+        Success!
+      </Text>
     </RNAnimated.View>
   );
 };
@@ -1772,9 +2427,30 @@ const AnimatedCaution = () => {
     }).start();
   }, []);
   return (
-    <RNAnimated.View style={{ opacity: fadeAnim, alignItems: 'center', justifyContent: 'center' }}>
-      <Feather name="alert-triangle" size={120} color="#FFD600" style={{ fontWeight: 'bold' }} />
-      <Text style={{ marginTop: 32, fontSize: 36, color: '#FFD600', fontWeight: 'bold', letterSpacing: 1 }}>No Menu Detected</Text>
+    <RNAnimated.View
+      style={{
+        opacity: fadeAnim,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Feather
+        name="alert-triangle"
+        size={120}
+        color="#FFD600"
+        style={{ fontWeight: "bold" }}
+      />
+      <Text
+        style={{
+          marginTop: 32,
+          fontSize: 36,
+          color: "#FFD600",
+          fontWeight: "bold",
+          letterSpacing: 1,
+        }}
+      >
+        No Menu Detected
+      </Text>
     </RNAnimated.View>
   );
 };
